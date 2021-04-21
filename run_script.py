@@ -23,9 +23,11 @@ if(__name__ == '__main__'):
 
     # load dat: TODO
     import sys
-    sys.path.append('/home/ztcecere/CodeRepository/PD/')
+    #sys.path.append('/home/ztcecere/CodeRepository/PD/')
+    sys.path.append('/snl/scratch/ztcecere/PD')
     import data_loader
-    rdir = '/data/ProcAiryData'
+    #rdir = '/data/ProcAiryData'
+    rdir = '/home/ztcecere/ProcAiryData'
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
 
 
@@ -121,7 +123,7 @@ if(__name__ == '__main__'):
     l1_mlr_xf1 = .05
     l1_mlr_xf2 = .1
     l1_mlr_wid = 0.1
-    boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth], [tree_width], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=0, fn_str=fn_set + fn_pred + 'depth1_nostim' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid))
+    #boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth], [tree_width], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=0, fn_str=fn_set + fn_pred + 'depth1_nostim' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid))
     # stim
     #boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth], [tree_width], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=1, fn_str=fn_set + fn_pred + 'depth1_stim' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid))
 
@@ -144,14 +146,12 @@ if(__name__ == '__main__'):
     #boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth,1], [tree_width,2], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=2, fn_str=fn_set + fn_pred + 'depth2_stim2state' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid))
  
     # boot stim 2-state lowrank
-    """
     boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim,
             worm_ids, olab, [tree_depth,1], [tree_width,2], l1_tree=.01,
             l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2,
             l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=2,
-            fn_str=fn_set + fn_pred + 'depth2_stim2state' + str(l1_mlr_xf1)
+            fn_str=fn_set + fn_pred + 'depth2_stim2stateLR32' + str(l1_mlr_xf1)
             + str(l1_mlr_xf2) + str(l1_mlr_wid), lrs=[3,2])
-    """
 
     # boost stim 4-state
     #boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth,2], [tree_width,2], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=2, fn_str=fn_set + fn_pred + 'depth2_stim4state' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid))
