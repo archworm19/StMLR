@@ -39,8 +39,8 @@ if(__name__ == '__main__'):
     inp2 = inp_zim # only needed for expansion
 
     # prediction type:
-    fn_pred = 'DV'
-    targ_cells = np.array([2])
+    fn_pred = 'RA'
+    targ_cells = np.array([0,1])
 
     # expand cells ~ On cells + large on pulses, Off cells + large off pulses
     for i in range(len(Y2)):
@@ -145,6 +145,7 @@ if(__name__ == '__main__'):
     # boost stim 2-state
     #boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth,1], [tree_width,2], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=2, fn_str=fn_set + fn_pred + 'depth2_stim2state' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid))
  
+    """
     # boot stim 2-state lowrank
     boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim,
             worm_ids, olab, [tree_depth,1], [tree_width,2], l1_tree=.01,
@@ -152,9 +153,13 @@ if(__name__ == '__main__'):
             l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=2,
             fn_str=fn_set + fn_pred + 'depth2_stim2stateLR32' + str(l1_mlr_xf1)
             + str(l1_mlr_xf2) + str(l1_mlr_wid), lrs=[3,2])
+    """
 
     # boost stim 4-state
     #boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth,2], [tree_width,2], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=2, fn_str=fn_set + fn_pred + 'depth2_stim4state' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid))
+
+    # boost stim 4-state + low-rank
+    boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, [tree_depth,2], [tree_width,2], l1_tree=.01, l1_mlr_xf1=l1_mlr_xf1, l1_mlr_xf2=l1_mlr_xf2, l1_mlr_wid=l1_mlr_wid, num_model=25, num_epoch=30, mode=2, fn_str=fn_set + fn_pred + 'depth2_stim4stateLR64' + str(l1_mlr_xf1) + str(l1_mlr_xf2) + str(l1_mlr_wid), lrs=[6,4])
 
 
 
