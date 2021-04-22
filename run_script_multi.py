@@ -5,6 +5,8 @@ if(__name__ == '__main__'):
     import numpy.random as npr
     import os
     import pylab as plt
+    from multiprocessing import Pool
+    import copy
 
     from master_timing import boot_cross_boosted
     from master_timing import pulse_expand
@@ -32,13 +34,13 @@ if(__name__ == '__main__'):
 
 
     ## run params:
-    tree_depths = [[4,0],[4,2],[4,2],[4,2],[4,2]]
+    tree_depths = [[4,2],[4,2],[4,2],[4,2],[4,2]]
     tree_widths = [[2,2],[2,2],[2,2],[2,2],[2,2]]
     l1_trees = [.01,.01,.01,.01,.01]
     l1_mlr_xf1s = [.05,.05,.05,.05,.05]
     l1_mlr_xf2s = [.1, .1, .1, .1, .1]
     l1_mlr_wids = [.1, .1, .1, .1, .1]
-    lrs = [[], [], [10, 4], [20, 4], [20, 8]]
+    lrs = [[], [8, 2], [10, 4], [20, 4], [20, 8]]
 
 
     ## Tree Boosting Analysis
@@ -111,19 +113,38 @@ if(__name__ == '__main__'):
         Xf_stim = Xf[:,:,4:6,:]
 
 
-    # boost stim 4-state + low-rank
-    futures = []
+    # make data structures for each process:
+    dstruct = []
     for i in range(len(tree_depths)):
         # get string name
-        fn_str = fn_set + fn_pred + 'depths' + str(tree_depths[i]) + 'LRs'
-        + str(lrs[i])
-        futures.append(boot_cross_boosted.remote(hyper_inds, train_sets,
-            test_sets, Xf_net, Xf_stim, worm_ids, olab, tree_depths[i],
-            tree_widths[i], l1_trees[i], l1_mlr_xf1=l1_mlr_xf1s[i],
-            l1_mlr_xf2=l1_mlr_xf2s[i], l1_mlr_wid=l1_mlr_wids[i], num_model=25,
-            num_epoch=30, mode=modes[i], fn_str=fn_str, lrs=lrs[i]))
-    print(ray.get(futures))
+        fn_str = fn_set + fn_pred + 'depths' + str(tree_depths[i]) + 'LRs' + str(lrs[i])
+        # deep copies of data ~ TODO: not good for lots of data / processes
+        sub_struct = {'hyper_inds':copy.deepcopy(hyper_inds), 'train_sets':copy.deepcopy(train_sets), 'test_sets':copy.deepcopy(test_sets), 
+                'Xf_net':copy.deepcopy(Xf_net), 'Xf_stim':copy.deepcopy(Xf_stim), 'worm_ids':copy.deepcopy(worm_ids), 'olab':olab}
+        # params:
+        sub_struct['tree_depth'] = tree_depths[i]
+        sub_struct['tree_width'] = tree_widths[i]
+        sub_struct['l1_tree'] = l1_trees[i]
+        sub_struct['l1_mlr_xf1'] = l1_mlr_xf1s[i]
+        sub_struct['l1_mlr_xf2'] = l1_mlr_xf2s[i]
+        sub_struct['l1_mlr_wid'] = l1_mlr_wids[i]
+        sub_struct['mode'] = modes[i]
+        sub_struct['fn_str'] = fn_str
+        sub_struct['lrs'] = lrs[i]
+        dstruct.append(sub_struct)
 
+
+    # wrapper for boost cross-validation:
+    def bcb(ds):
+        return boot_cross_boosted(ds['hyper_inds'], ds['train_sets'],
+            ds['test_sets'], ds['Xf_net'], ds['Xf_stim'], ds['worm_ids'], ds['olab'], ds['tree_depth'],
+            ds['tree_width'], ds['l1_tree'], l1_mlr_xf1=ds['l1_mlr_xf1'],
+            l1_mlr_xf2=ds['l1_mlr_xf2'], l1_mlr_wid=ds['l1_mlr_wid'], num_model=25,
+            num_epoch=30, mode=ds['mode'], fn_str=ds['fn_str'], lrs=ds['lrs'])
+
+
+    with Pool(len(dstruct)) as p:
+        p.map(bcb, dstruct)
 
 
 

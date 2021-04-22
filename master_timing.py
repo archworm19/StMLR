@@ -8,7 +8,6 @@
 '''
 
 import tensorflow as tf
-import ray
 import numpy as np
 import numpy.random as npr
 import pylab as plt
@@ -226,7 +225,6 @@ def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid,
 # 0: does not use Xf2
 # 1: stack Xf1 and Xf2 in drive/mlr
 # 2: separate model set for Xf2 (boosting)
-@ray.remote
 def boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf1, Xf2, worm_ids,
         olab, tree_depths, tree_widths, l1_tree=.01, l1_mlr_xf1=0.05,
         l1_mlr_xf2=0.05, l1_mlr_wid=0.1, num_model=50, num_epoch=10, mode=0,
