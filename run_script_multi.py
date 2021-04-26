@@ -33,6 +33,9 @@ if(__name__ == '__main__'):
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
 
 
+    # get baseline run params:
+    
+
     ## run params:
     tree_depths = [[4,2],[4,2],[4,2],[4,2],[4,2]]
     tree_widths = [[2,2],[2,2],[2,2],[2,2],[2,2]]

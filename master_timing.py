@@ -216,6 +216,18 @@ def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid,
     return Xf_list, model_masks
     
 
+# save metadata:
+def save_metadata(rc):
+    meta_strs = ['l1_tree', 'l1_mlr_xf1', 'l1_mlr_xf2', 'num_model', 'num_epoch', 'mode', 'lr', 'even_reg', 'tree_depth', 'tree_width']
+    bstr = ''
+    for ms in meta_strs:
+        bstr = bstr + ms + ': ' + rc[ms] + '\n'
+    text_file = open(os.path.join(rc['dir_str'], 'metadata.txt'))
+    text_file.write(bstr)
+    text_file.close()
+
+
+
 ## Network state only
 # goal: correct number of network states?
 # works for single number of states
@@ -225,28 +237,35 @@ def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid,
 # 0: does not use Xf2
 # 1: stack Xf1 and Xf2 in drive/mlr
 # 2: separate model set for Xf2 (boosting)
-def boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf1, Xf2, worm_ids,
-        olab, tree_depths, tree_widths, l1_tree=.01, l1_mlr_xf1=0.05,
-        l1_mlr_xf2=0.05, l1_mlr_wid=0.1, num_model=50, num_epoch=10, mode=0,
-        lrs=[], fn_str=''):
+# rc = run_config dictionary
+def boot_cross_boosted(rc): 
+
+    # if directory exists --> stop
+    # else --> create and populate it
+    if(os.path.isdir(rc['dir_str'])):
+        return
+    os.mkdir(rc['dir_str'])
+    # save metadata:
+    save_metadata(rc)
 
     # build Xf_list and model masks:
-    Xf_list, model_masks = boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, mode=mode)
+    Xf_list, model_masks = boost_lists(rc['Xf1'], rc['Xf2'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
 
     ## build data structures for hyper set:
-    dat_hyper, null = st_mlr.dat_gen(olab, Xf_list, hyper_inds, hyper_inds)
+    dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])
 
     # glean info from data structs:
-    output_cells = np.shape(olab)[-2]
-    output_classes = np.shape(olab)[-1]
+    output_cells = np.shape(rc['olab'])[-2]
+    output_classes = np.shape(rc['olab'])[-1]
     xdims = st_mlr.get_xdims(dat_hyper)
 
     # build architecture ~ used for all boots:
     B = st_mlr.arch_gen(output_cells, output_classes, xdims, model_masks,
-            tree_depths, tree_widths, num_model, lrs)
+            rc['tree_depth'], rc['tree_width'], rc['num_model'], rc['lr'], even_reg=rc['even_reg'])
 
     ## initial fit to hyper set:
-    tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper, dat_hyper, num_epochs=num_epoch, mode='')
+    # mode == '' in this case --> train full model
+    tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper, dat_hyper, num_epochs=rc['num_epoch'], mode='')
     # 3 best trees form the mask:
     sinds = np.argsort(tr_errs[-1])
     f_mask = np.zeros((num_model))
@@ -258,20 +277,20 @@ def boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf1, Xf2, worm_ids,
     save_loss = []
     save_train_vars = []
     for i in range(np.shape(train_sets)[0]):
-        train_inds = train_sets[i]
-        test_inds = test_sets[i]
+        train_inds = rc['train_sets'][i]
+        test_inds = rc['test_sets'][i]
 
         # regenerate datasets:
         dat_train, dat_test = st_mlr.dat_gen(olab, Xf_list, train_inds, test_inds)
 
         # mode=mlr --> trains only driver models = convex
-        tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_train, dat_test, num_epochs=num_epoch, mode='mlr')
+        tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_train, dat_test, num_epochs=rc['num_epoch'], mode='mlr')
 
         # get forest error on test set:
         f_loss = B.forest_loss(dat_test[0], dat_test[1], f_mask).numpy()
         save_loss.append(f_loss)
 
-        np.save(fn_str + 'boosted_err', np.array(save_loss))
+        np.save(os.path.join(rc['dir_str'], 'boosted_err'), np.array(save_loss))
 
         # save training vars:
         if(len(save_train_vars) == 0):
@@ -286,9 +305,63 @@ def boot_cross_boosted(hyper_inds, train_sets, test_sets, Xf1, Xf2, worm_ids,
                 for j in range(len(B.model_pairs[i])):
                     save_train_vars[count].append(B.model_pairs[i][j].get_analysis_vars(sinds[:3]))
                     count += 1
-        np.savez(fn_str + 'boosted_tv', *save_train_vars)
+        np.savez(os.path.join(rc['dir_str'], 'boosted_tv'), *save_train_vars)
 
 
+
+# TODO: get basic run configuration
+# returns python dict with default model parameters
+# mode 0 default = no stimulus, 4 state, no lr
+# mode 2 = stimulus boosting, 4 states for each, no lr
+def get_run_config(mode, run_id):
+    d = {}
+    # fn string from run id:
+    d['dir_str'] = 'run' + run_id
+    # empty data ~ need to fill this in after call:
+    d['hyper_inds'] = []
+    d['train_sets'] = []
+    d['test_sets'] = []
+    d['Xf1'] = []
+    d['Xf2'] = []
+    d['worm_ids'] = []
+    d['olab'] = []
+    # shared tree info:
+    d['l1_tree'] = .01 # l1 regularization term for tree features
+    d['l1_mlr_xf1'] = .05 # l1 regularization term for baseline St-MLR model
+    d['l1_mlr_xf2'] = 0.1 # l1 regularization term for secondary (typically stimulus) St-MLR model
+    d['num_model'] = 50
+    d['num_epoch'] = 25
+    d['mode'] = mode
+    d['lr'] = [] # ranks for MLR models... if empty --> full rank
+    d['even_reg'] = 0.1 # entropy regularization --> ensures similar amounts of data to each leaf
+    if(mode == 2):
+        d['tree_width'] = [2,2]
+        d['tree_depth'] = [2,2]
+    else:
+        d['tree_width'] = [2]
+        d['tree_depth'] = [2]
+
+
+
+# add axis of variation to run config list
+# each extant run_config gets duplicated for str, value pairs
+# skey = string key into rc (run_config)
+def new_run_config_axis(rc_list, s, vals):
+    new_rc_list = []
+    for rc in rc_list:
+        for count, v in enumerate(vals):
+            rc2 = copy.deepcopy(rc)
+            rc2[s] = v
+            rc2['dir_str'] = rc['dir_str'] + '_' + str(count)
+            new_rc_list.append(rc2)
+    return new_rc_list
+
+
+
+#### TODO: New plan
+# 1. automated search over hyperparam set (leave-N-out) for all run_configs
+# 2. find best performers for primary axis 
+# 3. run cross-validation with these best performers
 
 
 

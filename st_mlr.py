@@ -694,13 +694,13 @@ def restructure_Xf(Xf_list):
 # model masks matches shape
 # lr = low-rank... if > 0 --> run low-rank mode
 def gen_gate_drive(output_cells, output_classes, xdims_sub, model_mask_sub,
-        tree_depth, tree_width, num_model, lr=-1): 
+        tree_depth, tree_width, num_model, lr=-1, even_reg=0.1): 
     ## gate:
     if(tree_depth <= 0): # logistic regression
         G = Null(num_model)
         num_state = 1
     else:
-        G = Forest(tree_depth, tree_width, num_model, xdims_sub[0], even_reg=0.1, l1_mask=np.hstack(model_mask_sub[0]))
+        G = Forest(tree_depth, tree_width, num_model, xdims_sub[0], even_reg=even_reg, l1_mask=np.hstack(model_mask_sub[0]))
         num_state = int(tree_width**tree_depth)
 
     ## drive:
@@ -708,7 +708,7 @@ def gen_gate_drive(output_cells, output_classes, xdims_sub, model_mask_sub,
         MLR = MultiLogReg(num_model, num_state, xdims_sub[1], output_cells, output_classes, l1_mask=np.hstack(model_mask_sub[1]))
     else:
         MLR = MultiLogRegLR(num_model, num_state, xdims_sub[1], output_cells,
-                output_classes, l1_mask=.05, lr=lr)
+                output_classes, l1_mask=np.hstack(model_mask_sub[1]), lr=lr)
 
     ## returns: data structures and fitting objects
     return [G, MLR]
@@ -734,7 +734,7 @@ def block_convert(t_inds, Tsub):
 # NOTE: depth = 0 --> logistic regression
 # TODO: missing training stuff
 def arch_gen(output_cells, output_classes, xdims, model_masks, tree_depths,
-        tree_widths, num_model, lrs=[]): 
+        tree_widths, num_model, lrs=[], even_reg=0.1): 
 
     if(len(lrs) == 0):
         lrs = [-1 for k in range(len(tree_depths))]
@@ -744,7 +744,7 @@ def arch_gen(output_cells, output_classes, xdims, model_masks, tree_depths,
     for i in range(len(tree_depths)):
         archc = gen_gate_drive(output_cells, output_classes, xdims[i],
                 model_masks[i], tree_depths[i], tree_widths[i], num_model,
-                lrs[i])
+                lrs[i], even_reg=even_reg)
 
         arch.append(archc)
 
