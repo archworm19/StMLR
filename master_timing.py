@@ -316,7 +316,7 @@ def boot_cross_boosted(rc):
 def get_run_config(mode, run_id):
     d = {}
     # fn string from run id:
-    d['dir_str'] = 'run' + run_id
+    d['dir_str'] = run_id
     # empty data ~ need to fill this in after call:
     d['hyper_inds'] = []
     d['train_sets'] = []
@@ -329,7 +329,7 @@ def get_run_config(mode, run_id):
     d['l1_tree'] = .01 # l1 regularization term for tree features
     d['l1_mlr_xf1'] = .05 # l1 regularization term for baseline St-MLR model
     d['l1_mlr_xf2'] = 0.1 # l1 regularization term for secondary (typically stimulus) St-MLR model
-    d['num_model'] = 50
+    d['num_model'] = 25
     d['num_epoch'] = 25
     d['mode'] = mode
     d['lr'] = [] # ranks for MLR models... if empty --> full rank
@@ -356,6 +356,17 @@ def new_run_config_axis(rc_list, s, vals):
             new_rc_list.append(rc2)
     return new_rc_list
 
+
+
+# TODO: add data to run_config
+def add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab):
+    rc['hyper_inds'] = copy.deepcopy(hyper_inds)
+    rc['train_sets'] = copy.deepcopy(train_sets)
+    rc['test_sets'] = copy.deepcopy(test_sets)
+    rc['Xf_net'] = copy.deepcopy(Xf_net)
+    rc['Xf_stim'] = copy.deepcopy(Xf_stim)
+    rc['worm_ids'] = copy.deepcopy(worm_ids)
+    rc['olab'] = copy.deepcopy(olab)
 
 
 #### TODO: New plan
