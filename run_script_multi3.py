@@ -1,6 +1,8 @@
 
 if(__name__ == '__main__'):
 
+    # 3 = triple fit
+
     import numpy as np
     import numpy.random as npr
     import os
@@ -9,6 +11,7 @@ if(__name__ == '__main__'):
     import copy
 
     from master_timing import boot_cross_boosted
+    from master_timing import triple_fit 
     from master_timing import pulse_expand
     from master_timing import build_tensors
     from master_timing import label_basemus
@@ -25,20 +28,19 @@ if(__name__ == '__main__'):
     CELL_MANIFEST = ['AVA', 'RME', 'SMDV', 'SMDD', 'ON', 'OFF']
 
 
-    ## load dat: TODO
+    ## load dat: 
     import sys
-    #sys.path.append('/home/ztcecere/CodeRepository/PD/')
     sys.path.append('/snl/scratch/ztcecere/PD')
     import data_loader
-    #rdir = '/data/ProcAiryData'
     rdir = '/home/ztcecere/ProcAiryData'
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
+    # TODO: other data
 
 
     ## Tree Boosting Analysis
 
     # set indicator
-    fn_set = 'zim'
+    fn_set = 'zim_triple'
     Y2 = Y_zim
     inp2 = inp_zim # only needed for expansion
 
@@ -46,18 +48,15 @@ if(__name__ == '__main__'):
     fn_pred = 'RA'
     targ_cells = np.array([0,1])
 
-    # expand cells ~ On cells + large on pulses, Off cells + large off pulses
+    # add raw stimulus pattern
     for i in range(len(Y2)):
-        # ON cells
-        eon = pulse_expand(Y2[i][:,4], inp2[i][:,0], 15, 100000)
-        # OFF cells
-        eoff = pulse_expand(Y2[i][:,5], 1-inp2[i][:,0], 15, 100000)
-        Y2[i] = np.hstack((Y2[i],eon[:,None],eoff[:,None]))
+        Y2[i] = np.hstack((Y2[i], inp2[i][:,:1]))
+        # TODO: other dataset???
 
     # general params: 
     in_cells = np.array([0,1,2,3])
     num_tree_cell = len(in_cells)
-    in_cells_offset = np.array([4,5,6,7])
+    in_cells_offset = np.array([6]) # NOTE: this was innapropriately set for other stuff!!!!
 
     if(fn_pred == 'DV'):
         basemus, X, worm_ids, t0s = build_tensors(Y2, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=8)

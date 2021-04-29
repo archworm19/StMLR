@@ -313,10 +313,65 @@ def boot_cross_boosted(rc):
                     save_train_vars[count].append(B.model_pairs[i][j].get_analysis_vars(sinds[:3]))
                     count += 1
         np.savez(os.path.join(rc['dir_str'], 'boosted_tv'), *save_train_vars)
+    return B, f_mask
+
+
+# refit ~ starts from initialize B object
+# requires 'refit' data structures:
+# 1. Xf_net_refit, 2. Xf_stim_refit, 3. worm_ids_refit, 4. train_sets_refit, 5. test_sets_refit, 6. olab_refit
+def boot_cross_boosted_refit(rc, B, f_mask): 
+
+    # build Xf_list and model masks:
+    Xf_list, model_masks = boost_lists(rc['Xf_net_refit'], rc['Xf_stim_refit'], rc['worm_ids_refit'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+
+    ## fit mlr/drives to each bootstrap
+    # --> save forest errors
+    save_loss = []
+    save_train_vars = []
+    for i in range(np.shape(rc['train_sets_refit'])[0]):
+        train_inds = rc['train_sets_refit'][i]
+        test_inds = rc['test_sets_refit'][i]
+
+        # regenerate datasets:
+        dat_train, dat_test = st_mlr.dat_gen(rc['olab_refit'], Xf_list, train_inds, test_inds)
+
+        # mode=mlr --> trains only driver models = convex
+        tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_train, dat_test, num_epochs=rc['num_epoch'], mode='mlr')
+
+        # get forest error on test set:
+        f_loss = B.forest_loss(dat_test[0], dat_test[1], f_mask).numpy()
+        save_loss.append(f_loss)
+
+        np.save(os.path.join(rc['dir_str'], 'refit_boosted_err'), np.array(save_loss))
+
+        # save training vars:
+        if(len(save_train_vars) == 0):
+            # initialize:
+            for i in range(len(B.model_pairs)):
+                for j in range(len(B.model_pairs[i])):
+                    save_train_vars.append([B.model_pairs[i][j].get_analysis_vars(sinds[:3])])
+        else:
+            # zip:
+            count = 0
+            for i in range(len(B.model_pairs)):
+                for j in range(len(B.model_pairs[i])):
+                    save_train_vars[count].append(B.model_pairs[i][j].get_analysis_vars(sinds[:3]))
+                    count += 1
+        np.savez(os.path.join(rc['dir_str'], 'refit_boosted_tv'), *save_train_vars)
+    return B, f_mask
 
 
 
-# TODO: get basic run configuration
+# triple fit
+# 1/2. fit to first dataset (hyperparam and regular)
+# 3. refit on second dataset (trees are fixed)
+def triple_fit(rc): 
+    B, f_mask = boot_cross_boosted(rc)
+    boot_cross_boosted_refit(rc, B, f_mask)
+
+
+
+# get basic run configuration
 # returns python dict with default model parameters
 # mode 0 default = no stimulus, 4 state, no lr
 # mode 2 = stimulus boosting, 4 states for each, no lr
@@ -367,7 +422,7 @@ def new_run_config_axis(rc_list, s, vals):
 
 
 
-# TODO: add data to run_config
+# add data to run_config
 def add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab):
     rc['hyper_inds'] = copy.deepcopy(hyper_inds)
     rc['train_sets'] = copy.deepcopy(train_sets)
