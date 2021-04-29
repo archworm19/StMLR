@@ -197,12 +197,15 @@ def generate_traintest(num_blocks, num_boot, trainable_inds, testable_inds):
 # 0: does not use Xf2
 # 1: stack Xf1 and Xf2 in drive/mlr
 # 2: separate model set for Xf2
-def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, mode=0):
+# 3: same as 2 + stack Xf1 and Xf2 in second gate network ~ test stimulus context
+def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, wid0_factor=0.5, mode=0):
+    print('XF1 shape')
+    print(np.shape(Xf1))
     # base masks
     xf1_mask = np.ones((np.shape(Xf1)[-1]*np.shape(Xf1)[-2]))
     xf2_mask = np.ones((np.shape(Xf2)[-1]*np.shape(Xf2)[-2]))
     wid_mask = np.ones((np.shape(worm_ids)[-1]))
-    wid_mask[0] = 0.5 # TODO: what should this be???
+    wid_mask[0] = wid0_factor
 
     if(mode == 1):
         Xf_list = [[[Xf1],[Xf1,Xf2,worm_ids]]]
@@ -210,7 +213,10 @@ def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid,
     elif(mode == 2):
         Xf_list = [[[Xf1],[Xf1,worm_ids]],[[Xf1],[Xf2]]]
         model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,wid_mask*l1_mlr_wid]],[[xf1_mask*l1_tree],[xf2_mask*l1_mlr_xf2]]]
-    else:
+    elif(mode == 3):
+        Xf_list = [[[Xf1],[Xf1,worm_ids]],[[Xf1,Xf2],[Xf2]]]
+        model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,wid_mask*l1_mlr_wid]],[[xf1_mask*l1_tree,xf2_mask*l1_tree],[xf2_mask*l1_mlr_xf2]]]
+    else: # mode 0
         Xf_list = [[[Xf1],[Xf1,worm_ids]]]
         model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,wid_mask*l1_mlr_wid]]]
     return Xf_list, model_masks
@@ -221,8 +227,9 @@ def save_metadata(rc):
     meta_strs = ['l1_tree', 'l1_mlr_xf1', 'l1_mlr_xf2', 'num_model', 'num_epoch', 'mode', 'lr', 'even_reg', 'tree_depth', 'tree_width']
     bstr = ''
     for ms in meta_strs:
-        bstr = bstr + ms + ': ' + rc[ms] + '\n'
-    text_file = open(os.path.join(rc['dir_str'], 'metadata.txt'))
+        bstr = bstr + ms + ': ' + str(rc[ms]) + '\n'
+    text_file = open(os.path.join(rc['dir_str'], 'metadata.txt'),'w')
+    print(bstr)
     text_file.write(bstr)
     text_file.close()
 
@@ -249,7 +256,7 @@ def boot_cross_boosted(rc):
     save_metadata(rc)
 
     # build Xf_list and model masks:
-    Xf_list, model_masks = boost_lists(rc['Xf1'], rc['Xf2'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+    Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
 
     ## build data structures for hyper set:
     dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])
@@ -268,7 +275,7 @@ def boot_cross_boosted(rc):
     tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper, dat_hyper, num_epochs=rc['num_epoch'], mode='')
     # 3 best trees form the mask:
     sinds = np.argsort(tr_errs[-1])
-    f_mask = np.zeros((num_model))
+    f_mask = np.zeros((rc['num_model']))
     f_mask[sinds[:3]] = (1.0/3.0)
     f_mask = f_mask.astype(np.float32)
 
@@ -276,12 +283,12 @@ def boot_cross_boosted(rc):
     # --> save forest errors
     save_loss = []
     save_train_vars = []
-    for i in range(np.shape(train_sets)[0]):
+    for i in range(np.shape(rc['train_sets'])[0]):
         train_inds = rc['train_sets'][i]
         test_inds = rc['test_sets'][i]
 
         # regenerate datasets:
-        dat_train, dat_test = st_mlr.dat_gen(olab, Xf_list, train_inds, test_inds)
+        dat_train, dat_test = st_mlr.dat_gen(rc['olab'], Xf_list, train_inds, test_inds)
 
         # mode=mlr --> trains only driver models = convex
         tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_train, dat_test, num_epochs=rc['num_epoch'], mode='mlr')
@@ -321,25 +328,27 @@ def get_run_config(mode, run_id):
     d['hyper_inds'] = []
     d['train_sets'] = []
     d['test_sets'] = []
-    d['Xf1'] = []
-    d['Xf2'] = []
+    d['Xf_net'] = []
+    d['Xf_stim'] = []
     d['worm_ids'] = []
     d['olab'] = []
     # shared tree info:
     d['l1_tree'] = .01 # l1 regularization term for tree features
     d['l1_mlr_xf1'] = .05 # l1 regularization term for baseline St-MLR model
     d['l1_mlr_xf2'] = 0.1 # l1 regularization term for secondary (typically stimulus) St-MLR model
+    d['l1_mlr_wid'] = 0.1 # l1 regularization term for worm identity terms
     d['num_model'] = 25
     d['num_epoch'] = 25
     d['mode'] = mode
     d['lr'] = [] # ranks for MLR models... if empty --> full rank
     d['even_reg'] = 0.1 # entropy regularization --> ensures similar amounts of data to each leaf
-    if(mode == 2):
+    if(mode in [2,3]): 
         d['tree_width'] = [2,2]
         d['tree_depth'] = [2,2]
     else:
         d['tree_width'] = [2]
         d['tree_depth'] = [2]
+    return d
 
 
 

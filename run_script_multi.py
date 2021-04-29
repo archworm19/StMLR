@@ -104,22 +104,34 @@ if(__name__ == '__main__'):
     else:
         Xf_stim = Xf[:,:,4:6,:]
 
-
-    # TESTING
-    # get baseline run configuration
+    ## experiment: with stimulus context vs. without
+    # without ~ ZIM, 2 boost found to be best
     mode = 2
-    run_id = 'TESTING'
+    run_id = fn_set + fn_pred + 'mode' + str(mode)
     rc = get_run_config(mode, run_id)
-    # add raw data to run configs
+    rc['tree_depth'] = [2,1]
     add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
+   
+    # mode 3 + 2state
+    mode = 3
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d1'
+    rc2 = get_run_config(mode, run_id)
+    rc2['tree_depth'] = [2,1]
+    add_dat_rc(rc2, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
+
+    # mode 3 + 4state
+    mode = 3
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d2'
+    rc3 = get_run_config(mode, run_id)
+    rc3['tree_depth'] = [2,2]
+    add_dat_rc(rc3, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
 
     # dstruct contains all the different rcs:
-    dstruct = [rc]
+    dstruct = [rc, rc2, rc3]
 
     # wrapper for boost cross-validation:
     def bcb(ds):
-        return ds
-
+        return boot_cross_boosted(ds)
 
     with Pool(len(dstruct)) as p:
         p.map(bcb, dstruct)

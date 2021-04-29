@@ -739,6 +739,11 @@ def arch_gen(output_cells, output_classes, xdims, model_masks, tree_depths,
     if(len(lrs) == 0):
         lrs = [-1 for k in range(len(tree_depths))]
 
+    print(tree_depths)
+    print(len(xdims))
+    print(len(model_masks))
+    print(tree_widths)
+
     # build architecture
     arch = []
     for i in range(len(tree_depths)):
