@@ -393,7 +393,7 @@ def get_run_config(mode, run_id):
     d['l1_mlr_xf2'] = 0.1 # l1 regularization term for secondary (typically stimulus) St-MLR model
     d['l1_mlr_wid'] = 0.1 # l1 regularization term for worm identity terms
     d['num_model'] = 25
-    d['num_epoch'] = 25
+    d['num_epoch'] = 30
     d['mode'] = mode
     d['lr'] = [] # ranks for MLR models... if empty --> full rank
     d['even_reg'] = 0.1 # entropy regularization --> ensures similar amounts of data to each leaf
