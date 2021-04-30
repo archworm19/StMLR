@@ -104,7 +104,6 @@ if(__name__ == '__main__'):
     else:
         Xf_stim = Xf[:,:,4:6,:]
 
-    """
     ## experiment: with stimulus context vs. without
     # without ~ ZIM, 2 boost found to be best
     mode = 2
@@ -126,11 +125,7 @@ if(__name__ == '__main__'):
     rc3 = get_run_config(mode, run_id)
     rc3['tree_depth'] = [2,2]
     add_dat_rc(rc3, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
-    """
 
-    ## experiment: fit to big set... refit to small set == buffer-buffer
-    # ... TODO: migrate to using input
-    #
 
     # dstruct contains all the different rcs:
     dstruct = [rc, rc2, rc3]

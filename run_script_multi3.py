@@ -34,7 +34,8 @@ if(__name__ == '__main__'):
     import data_loader
     rdir = '/home/ztcecere/ProcAiryData'
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
-    # TODO: other data
+    # NoStim data
+    inp_nos, Y_nos = data_loader.load_data_ztcNoStim(rdir)
 
 
     ## Tree Boosting Analysis
@@ -43,6 +44,8 @@ if(__name__ == '__main__'):
     fn_set = 'zim_triple'
     Y2 = Y_zim
     inp2 = inp_zim # only needed for expansion
+    Y3 = Y_nos
+    inp3 = inp_nos
 
     # prediction type:
     fn_pred = 'RA'
@@ -51,24 +54,30 @@ if(__name__ == '__main__'):
     # add raw stimulus pattern
     for i in range(len(Y2)):
         Y2[i] = np.hstack((Y2[i], inp2[i][:,:1]))
-        # TODO: other dataset???
+    for i in range(len(Y3)):
+        Y3[i] = np.hstack((Y3[i], np.reshape(inp3[i],(-1,1))))
 
     # general params: 
     in_cells = np.array([0,1,2,3])
     num_tree_cell = len(in_cells)
-    in_cells_offset = np.array([6]) # NOTE: this was innapropriately set for other stuff!!!!
+    in_cells_offset = np.array([4,5,6]) 
 
     if(fn_pred == 'DV'):
         basemus, X, worm_ids, t0s = build_tensors(Y2, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=8)
+        basemus3, X3, worm_ids3, t0s3 = build_tensors(Y3, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=8)
         # get labels and filtered X
         olab = label_basemus(basemus, thrs=[-.02, .02])
+        olab3 = label_basemus(basemus3, thrs=[-.02, .02])
 
     else:
         basemus, X, worm_ids, t0s = build_tensors(Y2, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=6)
+        basemus3, X3, worm_ids3, t0s3 = build_tensors(Y3, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=6)
         # get labels and filtered X
         olab = label_basemus(basemus)
+        olab3 = label_basemus(basemus3)
 
     Xf,fb = filterX(X)
+    Xf3,null = filterX(X3)
 
     np.save('timing_fb.npy', fb)
 
@@ -95,51 +104,51 @@ if(__name__ == '__main__'):
         test_sets = test_sets > 0.5
 
 
+    try: 
+        train_sets3 = np.load(fn_set + fn_pred + '_trainsets3.npy') > 0.5
+        test_sets3 = np.load(fn_set + fn_pred + '_testsets3.npy') > 0.5
+    except: 
+        # repeat for 3 set:
+        trainable_inds3 = np.ones((np.shape(Xf3)[0])) > 0.5
+        testable_inds3 = np.ones((np.shape(Xf3)[0])) > 0.5
+        train_sets3, test_sets3 = generate_traintest(np.shape(Xf3)[0], num_boot, trainable_inds3, testable_inds3)
+        np.save(fn_set + fn_pred + '_trainsets3.npy', train_sets3*1)
+        np.save(fn_set + fn_pred + '_testsets3.npy', test_sets3*1)
+        train_sets3 = train_sets3 > 0.5
+        test_sets3 = test_sets3 > 0.5
+
+
     # Xf network
     Xf_net = Xf[:,:,:4,:]
-    # Xf stim
-    if(fn_pred == 'DV'):
-        Xf_stim = Xf[:,:,6:,:]
-    else:
-        Xf_stim = Xf[:,:,4:6,:]
+    # Xf stim ~ raw:
+    Xf_stim = Xf[:,:,6:,:]
+    # refit stuff:
+    Xf_net_refit = Xf3[:,:,:4,:]
+    Xf_stim_refit = Xf3[:,:,6:,:]
 
-    """
-    ## experiment: with stimulus context vs. without
-    # without ~ ZIM, 2 boost found to be best
+    # triple fit ~ ZIM RA   
+    # only need 1 trial/run config
     mode = 2
-    run_id = fn_set + fn_pred + 'mode' + str(mode)
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_3fit'
     rc = get_run_config(mode, run_id)
     rc['tree_depth'] = [2,1]
     add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
-   
-    # mode 3 + 2state
-    mode = 3
-    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d1'
-    rc2 = get_run_config(mode, run_id)
-    rc2['tree_depth'] = [2,1]
-    add_dat_rc(rc2, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
-
-    # mode 3 + 4state
-    mode = 3
-    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d2'
-    rc3 = get_run_config(mode, run_id)
-    rc3['tree_depth'] = [2,2]
-    add_dat_rc(rc3, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
-    """
-
-    ## experiment: fit to big set... refit to small set == buffer-buffer
-    # ... TODO: migrate to using input
-    #
+    rc['Xf_net_refit'] = Xf_net_refit
+    rc['Xf_stim_refit'] = Xf_stim_refit
+    rc['worm_ids_refit'] = worm_ids3
+    rc['train_sets_refit'] = train_sets3
+    rc['test_sets_refit'] = test_sets3
+    rc['olab_refit'] = olab3
 
     # dstruct contains all the different rcs:
-    dstruct = [rc, rc2, rc3]
+    dstruct = [rc]
 
     # wrapper for boost cross-validation:
-    def bcb(ds):
-        return boot_cross_boosted(ds)
+    def bcb3(ds):
+        return triple_fit(ds)
 
     with Pool(len(dstruct)) as p:
-        p.map(bcb, dstruct)
+        p.map(bcb3, dstruct)
 
 
 
