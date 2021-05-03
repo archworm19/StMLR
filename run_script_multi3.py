@@ -52,15 +52,26 @@ if(__name__ == '__main__'):
     targ_cells = np.array([0,1])
 
     # add raw stimulus pattern
+    # and OFF
     for i in range(len(Y2)):
-        Y2[i] = np.hstack((Y2[i], inp2[i][:,:1]))
+        # get off pattern:
+        first_on = np.where(inp2[i][:,0]==1)[0][0]
+        ioff = 1 - inp2[i][:,:1]
+        ioff[:first_on,:] = 0
+        Y2[i] = np.hstack((Y2[i], inp2[i][:,:1], ioff))
+        
     for i in range(len(Y3)):
-        Y3[i] = np.hstack((Y3[i], np.reshape(inp3[i],(-1,1))))
+        # get off pattern:
+        ion = np.reshape(inp3[i],(-1,1))
+        first_on = np.where(ion[:,0]==1)[0][0]
+        ioff = 1 - ion
+        ioff[:first_on,:] = 0
+        Y3[i] = np.hstack((Y3[i], ion, ioff))
 
     # general params: 
     in_cells = np.array([0,1,2,3])
     num_tree_cell = len(in_cells)
-    in_cells_offset = np.array([4,5,6]) 
+    in_cells_offset = np.array([4,5,6,7]) 
 
     if(fn_pred == 'DV'):
         basemus, X, worm_ids, t0s = build_tensors(Y2, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=8)
@@ -88,13 +99,15 @@ if(__name__ == '__main__'):
         hyper_inds = npr.rand(np.shape(Xf)[0]) < 0.3
         np.save(fn_set + fn_pred + 'hyper_inds', hyper_inds*1)
 
+    # number of bootstraps
+    num_boot = 1000
+
     # try loading train/test sets:
     try:
         print('loading sets')
         train_sets = np.load(fn_set + fn_pred + '_trainsets.npy') > 0.5
         test_sets = np.load(fn_set + fn_pred + '_testsets.npy') > 0.5
     except:
-        num_boot = 1000
         trainable_inds = np.ones((np.shape(Xf)[0])) > 0.5
         testable_inds = np.logical_not(hyper_inds)
         train_sets, test_sets = generate_traintest(np.shape(Xf)[0], num_boot, trainable_inds, testable_inds)
@@ -129,7 +142,7 @@ if(__name__ == '__main__'):
     # triple fit ~ ZIM RA   
     # only need 1 trial/run config
     mode = 2
-    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_3fit'
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_3fit_ONOFF'
     rc = get_run_config(mode, run_id)
     rc['tree_depth'] = [2,1]
     add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
@@ -139,6 +152,16 @@ if(__name__ == '__main__'):
     rc['train_sets_refit'] = train_sets3
     rc['test_sets_refit'] = test_sets3
     rc['olab_refit'] = olab3
+
+    ## Handle Worm Ids
+    # worm_ids must be the same shape across worms:
+    # get new shapes to add
+    sh_add0 = [np.shape(rc['worm_ids'])[0], np.shape(rc['worm_ids'])[1], np.shape(rc['worm_ids_refit'])[2]-1]
+    sh_add1 = [np.shape(rc['worm_ids_refit'])[0], np.shape(rc['worm_ids_refit'])[1], np.shape(rc['worm_ids'])[2]-1]
+    # first set
+    rc['worm_ids'] = np.concatenate((rc['worm_ids'], np.zeros((sh_add0))), axis=2)
+    # second set
+    rc['worm_ids_refit'] = np.concatenate((np.zeros((sh_add1)), rc['worm_ids_refit']), axis=2)
 
     # dstruct contains all the different rcs:
     dstruct = [rc]

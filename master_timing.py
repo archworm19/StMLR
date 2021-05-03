@@ -313,13 +313,13 @@ def boot_cross_boosted(rc):
                     save_train_vars[count].append(B.model_pairs[i][j].get_analysis_vars(sinds[:3]))
                     count += 1
         np.savez(os.path.join(rc['dir_str'], 'boosted_tv'), *save_train_vars)
-    return B, f_mask
+    return B, f_mask, sinds
 
 
 # refit ~ starts from initialize B object
 # requires 'refit' data structures:
 # 1. Xf_net_refit, 2. Xf_stim_refit, 3. worm_ids_refit, 4. train_sets_refit, 5. test_sets_refit, 6. olab_refit
-def boot_cross_boosted_refit(rc, B, f_mask): 
+def boot_cross_boosted_refit(rc, B, f_mask, sinds): 
 
     # build Xf_list and model masks:
     Xf_list, model_masks = boost_lists(rc['Xf_net_refit'], rc['Xf_stim_refit'], rc['worm_ids_refit'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
@@ -366,9 +366,8 @@ def boot_cross_boosted_refit(rc, B, f_mask):
 # 1/2. fit to first dataset (hyperparam and regular)
 # 3. refit on second dataset (trees are fixed)
 def triple_fit(rc): 
-    B, f_mask = boot_cross_boosted(rc)
-    boot_cross_boosted_refit(rc, B, f_mask)
-
+    B, f_mask, sinds = boot_cross_boosted(rc)
+    boot_cross_boosted_refit(rc, B, f_mask, sinds)
 
 
 # get basic run configuration

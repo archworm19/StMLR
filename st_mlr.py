@@ -17,7 +17,6 @@ import abc
 dr = npr.default_rng(42)
 
 
-
 #### Abstract Classes
 # 1. gating models, 2. driver models
 
@@ -657,6 +656,7 @@ def train_epochs(Model, train_dataset, train_Xf, train_truths, test_Xf, test_tru
             Model.train_mlr(dbatch)
         else:
             Model.train(dbatch) 
+        
         # train error:
         tr_errs.append(Model.loss(train_truths, train_Xf, separate_mode=True).numpy())
         te_errs.append(Model.loss(test_truths, test_Xf, separate_mode=True).numpy())
@@ -666,8 +666,10 @@ def train_epochs(Model, train_dataset, train_Xf, train_truths, test_Xf, test_tru
 # training wrapper for typical data format
 # data format = [truths, [Model pair feed...
 def train_epochs_wrapper(Model, dat_train, dat_test, num_epochs=10, mode=''):
+
     # convert to dataset:
     train_dataset = tf.data.Dataset.from_tensor_slices(dat_train)
+
     tr_errs, te_errs = train_epochs(Model, train_dataset, dat_train[1], dat_train[0], dat_test[1], dat_test[0], num_epochs, mode)
     return tr_errs, te_errs
 
