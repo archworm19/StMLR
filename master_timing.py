@@ -220,7 +220,116 @@ def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid,
         Xf_list = [[[Xf1],[Xf1,worm_ids]]]
         model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,wid_mask*l1_mlr_wid]]]
     return Xf_list, model_masks
-    
+ 
+
+
+# random slope xf
+def generate_rand_slope_xf(Xf_l):
+    # shared term:
+    Xf_shared = np.concatenate(Xf_l, axis=0)
+    xf_l = [Xf_shared]
+    count = 0
+    for i, xf in enumerate(Xf_l):
+        npc = 0*Xf_shared
+        # current xf entry
+        npc[count:count+np.shape(xf)[0]] = xf
+        # add to list:
+        xf_l.append(npc)
+        # update count
+        count += np.shape(xf)[0]
+    # combine across cells (could combine aross last dim as well... doesn't matter)
+    return np.concatenate(xf_l, axis=2)
+
+
+# random slope + l1 mask
+def generate_rand_slope_l1(Xf_l, l1_base, l1_variance): 
+    l1_base_np = np.ones((np.shape(Xf_l[0])[-1]*np.shape(Xf_l[0])[-2])) * l1_base
+    l1_l = [l1_base_np]
+    for i in range(len(Xf_l)):
+        l1_l.append(l1_base_np * l1_variance)
+    return np.hstack((l1_l))
+
+
+
+# boost lists for random slope models
+# mode 4 ~ Xfs = lists of numpy arrays
+# ... make 'common data' = shared across conditions
+# ... stack condition-speicific data copies on common data
+# ... use l1 factors to further penalize additional terms
+# ... all l1s are now lists/tuples = (base l1, l1_factor for group terms) 
+# Xf1 shape = num_block x t_per_block x in_cell x xdim
+# NOTE: Xf1 should be same shape across conditions
+def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, wid0_factor=0.5, mode=4):
+    # Xf1
+    Xf1_stack = generate_rand_slope_xf(Xf1) 
+    # Xf2:
+    Xf2_stack = generate_rand_slope_xf(Xf2)
+    # l1 tree:
+    l1_tree_mask = generate_rand_slope_l1(Xf1, l1_tree[0], l1_tree[1])
+    # l1 mlr xf1:
+    l1_xf1mlr_mask = generate_rand_slope_l1(Xf1, l1_mlr_xf1[0], l1_mlr_xf1[1])
+    # l1 mlr xf2:
+    l1_xf2mlr_mask = generate_rand_slope_l1(Xf2, l1_mlr_xf2[0], l1_mlr_xf2[1])
+    # l1 mlr wid: intercepts...doesn't get tiled 
+    wid_mask = np.ones((np.shape(worm_ids)[-1])) * l1_mlr_wid
+    wid_mask[0] = wid0_factor
+
+    print(np.shape(Xf1_stack))
+    print(np.shape(Xf2_stack))
+    print(np.shape(worm_ids))
+
+    # TESTING: tiled correctly???
+    # TODO
+    print(np.shape(l1_tree_mask))
+    plt.figure()
+    plt.pcolor(Xf1_stack[:,0,:,0])
+    plt.title('Xf1 stack')
+    plt.show()
+    plt.figure()
+    plt.pcolor(Xf2_stack[:,0,:,0])
+    plt.title('Xf2 stack')
+    plt.show()
+    plt.figure()
+    plt.plot(l1_tree_mask)
+    plt.plot(l1_xf1mlr_mask)
+    plt.plot(l1_xf2mlr_mask)
+    plt.show()
+
+    Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack],[Xf2_stack]]]
+    model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask], [l1_xf2mlr_mask]]]
+    return Xf_list, model_masks
+
+
+# join list of worm_ids (across conditions) into a single worm_id
+# EX: if 2 conditions and 17 worms each --> 35 dims output
+# each worm_id tensor = num_batch x t_per_batch x num_worms + 1
+def join_worm_ids_l(worm_ids_l):
+    # new number of worms:
+    num_worms = [np.shape(wid)[-1] for wid in worm_ids_l]
+    print(num_worms)
+    num_worms = sum(num_worms) - len(worm_ids_l) # remove redundent intercepts
+    print(num_worms)
+    # new larger list of worm ids:
+    new_wids_l = []
+    counter = 0
+    for wid in worm_ids_l:
+        sh_cur = list(np.shape(wid))
+        sub_worms = sh_cur[-1]-1
+        sh_cur[-1] = num_worms
+        new_counter = counter + sub_worms
+        add_wid = np.zeros(sh_cur)
+        add_wid[:,:,counter:new_counter] = wid[:,:,1:]
+        counter = new_counter
+        new_wids_l.append(add_wid)
+    out_wids = np.vstack(new_wids_l)
+    # add true intercept back in:
+    add_cept = np.ones((np.shape(out_wids)[0],np.shape(out_wids)[1],1))
+    out_wids = np.concatenate((add_cept, out_wids), axis=-1)
+    plt.figure()
+    plt.pcolor(out_wids[:,0,:])
+    plt.show()
+    return out_wids
+
 
 # save metadata:
 def save_metadata(rc):
@@ -256,7 +365,11 @@ def boot_cross_boosted(rc):
     save_metadata(rc)
 
     # build Xf_list and model masks:
-    Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+    if(rc['mode'] in [0,1,2,3]):
+        Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+    else: # rand slope
+        worm_ids = join_worm_ids_l(rc['worm_ids'])
+        Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
 
     ## build data structures for hyper set:
     dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])
@@ -399,6 +512,13 @@ def get_run_config(mode, run_id):
     if(mode in [2,3]): 
         d['tree_width'] = [2,2]
         d['tree_depth'] = [2,2]
+    elif(mode == 4):
+        d['tree_width'] = [2,2]
+        d['tree_depth'] = [2,2]
+        # need to double up l1 terms (core penalty + cross-animal penalty)
+        d['l1_tree'] = [.01, 1.0] 
+        d['l1_mlr_xf1'] = [.05, 1.0] 
+        d['l1_mlr_xf2'] = [.1, 1.0] 
     else:
         d['tree_width'] = [2]
         d['tree_depth'] = [2]

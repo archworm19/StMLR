@@ -27,11 +27,11 @@ if(__name__ == '__main__'):
 
     ## load dat: TODO
     import sys
-    #sys.path.append('/home/ztcecere/CodeRepository/PD/')
-    sys.path.append('/snl/scratch/ztcecere/PD')
+    sys.path.append('/home/ztcecere/CodeRepository/PD/')
+    #sys.path.append('/snl/scratch/ztcecere/PD')
     import data_loader
-    #rdir = '/data/ProcAiryData'
-    rdir = '/home/ztcecere/ProcAiryData'
+    rdir = '/data/ProcAiryData'
+    #rdir = '/home/ztcecere/ProcAiryData'
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
 
 
@@ -100,6 +100,9 @@ if(__name__ == '__main__'):
     Xf_net = Xf[:,:,:4,:]
     # Xf stim
     Xf_stim = Xf[:,:,4:6,:]
+
+    print(np.shape(Xf_net))
+    input('cont?')
 
     ## experiment: with stimulus context vs. without
 
