@@ -6,6 +6,7 @@ __pycache__/
 # numpy storage
 *.npy
 *.npz
+*.swp
 
 # metadata:
 *metadata.txt
