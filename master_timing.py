@@ -174,13 +174,13 @@ def pulse_expand(cell_tr, inp_tr, low_thr, hi_thr):
 # takes in 1. number of blocks, 2. trainable inds, 3. testable inds
 # ... last 2 should match number of blocks and should be booleans
 # --> sample training inds --> make new testable set --> sample testable inds
-def generate_traintest(num_blocks, num_boot, trainable_inds, testable_inds):
+def generate_traintest(num_blocks, num_boot, trainable_inds, testable_inds, train_perc=0.5): 
     train_sets = np.zeros((num_boot, num_blocks))
     test_sets = np.zeros((num_boot, num_blocks))
     # iter thru boots:
     for i in range(num_boot):
         # sample train inds:
-        train_inds = np.logical_and(trainable_inds, npr.rand(num_blocks) < 0.5)
+        train_inds = np.logical_and(trainable_inds, npr.rand(num_blocks) < train_perc)
         train_sets[i,:] = train_inds
         # test inds = everything in testable and not in train inds:
         test_inds = np.logical_and(np.logical_not(train_inds), testable_inds)
@@ -318,7 +318,63 @@ def save_metadata(rc):
 
 
 
-## Network state only
+## Out-of-bootstrap cross-validation on hyper set
+# difference between hyper and test set?
+# fit whole model to hyper set... test set strategy fits to hyper then to test
+# hyperparameters specified in different run config directories
+def boot_cross_hyper(rc): 
+
+    # if directory exists --> stop
+    # else --> create and populate it
+    if(os.path.isdir(rc['dir_str'])):
+        return
+    os.mkdir(rc['dir_str'])
+    # save metadata:
+    save_metadata(rc)
+
+    # build Xf_list and model masks:
+    if(rc['mode'] in [0,1,2,3]):
+        Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+    else: # rand slope
+        worm_ids = join_worm_ids_l(rc['worm_ids'])
+        Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+
+    ## build data structures for hyper set:
+    dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])
+
+    # glean info from data structs:
+    output_cells = np.shape(rc['olab'])[-2]
+    output_classes = np.shape(rc['olab'])[-1]
+    xdims = st_mlr.get_xdims(dat_hyper)
+
+    # hyper train and test errors:
+    htre_errs = []
+
+    # iter thru hyper train sets:
+    for i in range(np.shape(rc['train_sets_hyper'])[0]): 
+
+        train_inds = rc['train_sets_hyper'][i]
+        test_inds = rc['test_sets_hyper'][i]
+
+        # build architecture ~ used for all boots:
+        B = st_mlr.arch_gen(output_cells, output_classes, xdims, model_masks,
+                rc['tree_depth'], rc['tree_width'], rc['num_model'], rc['lr'], even_reg=rc['even_reg'])
+
+        ## initial fit to hyper set:
+        # mode == '' in this case --> train full model
+        tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper[train_inds], dat_hyper[test_inds], num_epochs=rc['num_epoch'], mode='')
+        # 3 best trees form the mask:
+        sinds = np.argsort(tr_errs[-1])
+        f_mask = np.zeros((rc['num_model']))
+        f_mask[sinds[:3]] = (1.0/3.0)
+        f_mask = f_mask.astype(np.float32)
+
+        htre_errs.append([np.sum(tr_errs * f_mask), np.sum(te_errs * f_mask)])
+        np.save(os.path.join(rc['dir_str'], 'hyper_errs'), np.array(htre_errs))
+
+
+
+## Out-of-bootstrap cross-validation
 # goal: correct number of network states?
 # works for single number of states
 # fit full model to hyper set --> fit log reg models for each bootstrap

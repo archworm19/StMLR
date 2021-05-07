@@ -80,10 +80,20 @@ if(__name__ == '__main__'):
     # hyper set handling:
     try:
         hyper_inds = np.load(fn_set + fn_pred + 'hyper_inds') > 0.5
+        train_sets_hyper = np.load(fn_set + fn_pred + 'train_sets_hyper') > 0.5
+        test_sets_hyper = np.load(fn_set + fn_pred + 'test_sets_hyper') > 0.5
     except:
         tot_size = sum([np.shape(xfi)[0] for xfi in Xfs_l])
         hyper_inds = npr.rand(tot_size) < 0.3
         np.save(fn_set + fn_pred + 'hyper_inds', hyper_inds*1)
+        # hyperparameter train/test set generation:
+        train_sets, test_sets = generate_traintest(tot_size, num_boot, trainable_inds, testable_inds)
+        train_sets_hyper, test_sets_hyper = generate_traintest(tot_size, 10, hyper_inds, hyper_inds, train_perc=0.95)
+        np.save(fn_set + fn_pred + 'train_sets_hyper.npy', train_sets*1)
+        np.save(fn_set + fn_pred + 'test_sets_hyper.npy', test_sets*1)
+        train_sets_hyper = train_sets_hyper > 0.5
+        test_sets_hyper = test_sets_hyper > 0.5
+       
 
     # try loading train/test sets:
     try:
@@ -119,18 +129,35 @@ if(__name__ == '__main__'):
     rc['tree_depth'] = [2,1]
     add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olab)
     rc['l1_tree'] = [.01, 2.0]
-
+    rc['train_sets_hyper'] = train_sets_hyper
+    rc['test_sets_hyper'] = test_sets_hyper
+    
 
     # dstruct contains all the different rcs:
     dstruct = [rc]
 
+    # TODO: still need to test rc tiling
+    # also... are we going to have memory issues (maybe...) 
 
+    # hyperparameter testing
+    def bch(ds): 
+        return boot_cross_hyper(ds)
+
+    MAXPROC = 5
+    for i in range(0, len(dstruct), MAXPROC):
+        endind = min(len(dstruct),i+MAXPROC)
+        dstruct_sub = dstruct[i:endind]
+        with Pool(len(dstruct_sub)) as p:
+            p.map(bch, dstruct_sub)
+
+
+    """
     # wrapper for boost cross-validation:
     def bcb(ds):
         return boot_cross_boosted(ds)
 
     with Pool(len(dstruct)) as p:
         p.map(bcb, dstruct)
-
+    """
 
 
