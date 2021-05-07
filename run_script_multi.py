@@ -43,8 +43,8 @@ if(__name__ == '__main__'):
     inp2 = inp_zim # only needed for expansion
 
     # prediction type:
-    fn_pred = 'RA'
-    targ_cells = np.array([0,1])
+    fn_pred = 'DV'
+    targ_cells = np.array([2,3])
 
     # expand cells ~ On cells + large on pulses, Off cells + large off pulses
     for i in range(len(Y2)):
@@ -99,36 +99,55 @@ if(__name__ == '__main__'):
     # Xf network
     Xf_net = Xf[:,:,:4,:]
     # Xf stim
-    if(fn_pred == 'DV'):
-        Xf_stim = Xf[:,:,6:,:]
-    else:
-        Xf_stim = Xf[:,:,4:6,:]
+    Xf_stim = Xf[:,:,4:6,:]
 
     ## experiment: with stimulus context vs. without
-    # without ~ ZIM, 2 boost found to be best
+
+    # no stim:
+    mode = 1
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_NOS'
+    rc0 = get_run_config(mode, run_id)
+    rc0['tree_depth'] = [2]
+    add_dat_rc(rc0, hyper_inds, train_sets, test_sets, Xf_net, 0.0*Xf_stim, worm_ids, olab)
+
+    # without ~ ZIM, 0 depth
     mode = 2
-    run_id = fn_set + fn_pred + 'mode' + str(mode)
-    rc = get_run_config(mode, run_id)
-    rc['tree_depth'] = [2,1]
-    add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
-   
-    # mode 3 + 2state
-    mode = 3
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d0'
+    rc1 = get_run_config(mode, run_id)
+    rc1['tree_depth'] = [2,0]
+    add_dat_rc(rc1, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
+ 
+    # without ~ ZIM, 1 depth
+    mode = 2
     run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d1'
     rc2 = get_run_config(mode, run_id)
     rc2['tree_depth'] = [2,1]
     add_dat_rc(rc2, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
 
-    # mode 3 + 4state
-    mode = 3
+    # without ~ ZIM, 2 depth
+    mode = 2
     run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d2'
     rc3 = get_run_config(mode, run_id)
     rc3['tree_depth'] = [2,2]
     add_dat_rc(rc3, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
 
+    # mode 3 + 2state
+    mode = 3
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d1'
+    rc4 = get_run_config(mode, run_id)
+    rc4['tree_depth'] = [2,1]
+    add_dat_rc(rc4, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
+
+    # mode 3 + 4state
+    mode = 3
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d2'
+    rc5 = get_run_config(mode, run_id)
+    rc5['tree_depth'] = [2,2]
+    add_dat_rc(rc5, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab)
+
 
     # dstruct contains all the different rcs:
-    dstruct = [rc, rc2, rc3]
+    dstruct = [rc0, rc2, rc3, rc4, rc5]
 
     # wrapper for boost cross-validation:
     def bcb(ds):
