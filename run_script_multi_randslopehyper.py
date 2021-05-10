@@ -23,6 +23,8 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 plt.rcParams.update({'font.size': 14})
 
 
+#### Shared Memory Solution
+# requires python3.8
 
 # shared memory creation:
 # returns: [name, shape, dtype]
@@ -92,6 +94,48 @@ def convert_shmname_to_np(rc):
             # replace in run_config:
             rc[tk] = cur_v
 
+
+#### FileSystem Soln
+# rc holds filenames --> each process loads and replaces
+# NOTE: save complete path
+
+
+def convert_np_to_fn(rc):
+    target_keys = ['hyper_inds', 'train_sets', 'test_sets', 'train_sets_hyper', 'test_sets_hyper']
+    root_dir = rc['dir_str']
+    for tk in target_keys:
+        if(tk in rc):
+            full_path = os.path.join(root_dir, tk)
+            np.save(full_path, rc[tk])
+            rc[tk] = full_path
+
+    target_keys = ['Xf_net', 'Xf_stim', 'worm_ids', 'olab'] 
+    for tk in target_keys:
+        if(tk in rc):
+            full_path = os.path.join(root_dir, tk)
+            np.savez(full_path, rc[tk])
+            rc[tk] = full_path
+
+# convert npz to list
+# takes in the npz dictionary
+def conv_npz_l(d):
+    l = []
+    for i in range(len(d.keys())):
+        l.append(d['arr_' + str(i)])
+    return l
+
+
+# each process should call this to load the required data
+def convert_fn_to_np(rc):
+    target_keys = ['hyper_inds', 'train_sets', 'test_sets', 'train_sets_hyper', 'test_sets_hyper']
+    for tk in target_keys:
+        if(tk in rc):
+            rc[tk] = np.load(rc[tk])
+
+    target_keys = ['Xf_net', 'Xf_stim', 'worm_ids', 'olab'] 
+    for tk in target_keys:
+        if(tk in rc):
+            rc[tk] = conv_npz_l(np.load(rc[tk]))
 
 
 if(__name__ == '__main__'):
@@ -206,9 +250,9 @@ if(__name__ == '__main__'):
             test_sets_hyper) 
     rc['l1_tree'] = [.01, 2.0]
 
-    # create shared memory objects
-    # --> writes into run_config
-    create_shm(rc)
+
+    # save big datastructures to lists... pass around filenames:
+    convert_np_to_fn(rc)
 
     # dstruct contains all the different rcs:
     dstruct = [rc]
@@ -220,7 +264,7 @@ if(__name__ == '__main__'):
 
     # hyperparameter testing
     def bch(rc): 
-        convert_shmname_to_np(rc)
+        convert_fn_to_np(rc)
         return boot_cross_hyper(rc)
 
     # TODO: there should be a way to limit the number of processes in the pool
