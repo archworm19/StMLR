@@ -1,31 +1,107 @@
+import numpy as np
+import numpy.random as npr
+import os
+import pylab as plt
+from multiprocessing import Pool
+from multiprocessing import shared_memory
+import copy
+
+from master_timing import boot_cross_boosted
+from master_timing import boot_cross_hyper
+from master_timing import pulse_expand
+from master_timing import build_tensors
+from master_timing import label_basemus
+from master_timing import filterX
+from master_timing import generate_traintest
+from master_timing import get_run_config
+from master_timing import add_dat_rc
+from master_timing import new_run_config_axis
+
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
+plt.rcParams.update({'font.size': 14})
+
+
+
+# shared memory creation:
+# returns: [name, shape, dtype]
+def create_shm_obj(np_obj):
+    # create new shm
+    shm = shared_memory.SharedMemory(create=True, size=np_obj.nbytes)
+    # create numpy array backed by shared memory:
+    npb = np.ndarray(np_obj.shape, dtype=np_obj.dtype, buffer=shm.buf)
+    # copy og data into shared memory:
+    npb[:] = np_obj[:]
+    return [shm.name, np.shape(npb), npb.dtype]
+
+
+# convert numpy arrays to shared memory arrays
+# writes shared memory info into run_config
+# each data entry = [shared memory name, shape, dtype]
+# NOTE: writes sharedmem info over nump array in run_config
+def create_shm(rc):
+    # numpy targets
+    target_keys = ['hyper_inds', 'train_sets', 'test_sets', 'train_sets_hyper', 'test_sets_hyper'] 
+    for tk in target_keys:
+        if(tk in rc):
+            rc[tk] = create_shm_obj(rc[tk])
+    # list of numpy targets:
+    target_keys = ['Xf_net', 'Xf_stim', 'worm_ids', 'olab'] 
+    for tk in target_keys:
+        if(tk in rc):
+            rc_new = []
+            for ar in rc[tk]:
+                rc_new.append(create_shm_obj(ar))
+            rc[tk] = rc_new
+   
+
+# convert shared memory name to numpy array
+# 1. attached to shared memory object (via name)
+# 2. attach numpy array buffer to shared memory object
+# 3. copy reference for numpy array into run_config dictionary (replaces name)
+# NOTE stored in run_config = [name, shape, dtype]
+# NOTE: this should be called after mapping 
+def convert_shmname_to_np(rc):
+    # numpy targets:
+    target_keys = ['hyper_inds', 'train_sets', 'test_sets', 'train_sets_hyper', 'test_sets_hyper'] 
+    for tk in target_keys:
+        if(tk in rc):
+            # get info
+            [name, shape, dtype] = rc[tk]
+            # attach to shared memory:
+            cur_shm = shared_memory.SharedMemory(name=name)
+            # attach numpy array buffer to shared memory:
+            ar = np.ndarray(shape, dtype=dtype, buffer=cur_shm.buf)
+            # replace in run_config:
+            rc[tk] = ar
+    # targets: list of numpy arrays:
+    target_keys = ['Xf_net', 'Xf_stim', 'worm_ids', 'olab'] 
+    for tk in target_keys:
+        if(tk in rc):
+            cur_v = []
+            for l in rc[tk]:
+                # get info
+                [name, shape, dtype] = l
+                # attach to shared memory:
+                cur_shm = shared_memory.SharedMemory(name=name)
+                # attach numpy array buffer to shared memory:
+                ar = np.ndarray(shape, dtype=dtype, buffer=cur_shm.buf)
+                # add to current list:
+                cur_v.append(ar)
+            # replace in run_config:
+            rc[tk] = cur_v
+
+
 
 if(__name__ == '__main__'):
 
-    import numpy as np
-    import numpy.random as npr
-    import os
-    import pylab as plt
-    from multiprocessing import Pool
-    import copy
-
-    from master_timing import boot_cross_boosted
-    from master_timing import pulse_expand
-    from master_timing import build_tensors
-    from master_timing import label_basemus
-    from master_timing import filterX
-    from master_timing import generate_traintest
-    from master_timing import get_run_config
-    from master_timing import add_dat_rc
-
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-
-    plt.rcParams.update({'font.size': 14})
 
     VOLS_PER_SECOND = 1.5
     CELL_MANIFEST = ['AVA', 'RME', 'SMDV', 'SMDD', 'ON', 'OFF']
 
 
-    ## load dat: TODO
+    ## load dat: 
     import sys
     #sys.path.append('/home/ztcecere/CodeRepository/PD/')
     sys.path.append('/snl/scratch/ztcecere/PD')
@@ -59,6 +135,7 @@ if(__name__ == '__main__'):
     in_cells = np.array([0,1,2,3])
     num_tree_cell = len(in_cells)
     in_cells_offset = np.array([4,5,6,7])
+    num_boot = 5
 
     # build tensors for each subset:
     Xfs_l, olabs_l, worm_ids_l, fb = [], [], [], []
@@ -87,10 +164,9 @@ if(__name__ == '__main__'):
         hyper_inds = npr.rand(tot_size) < 0.3
         np.save(fn_set + fn_pred + 'hyper_inds', hyper_inds*1)
         # hyperparameter train/test set generation:
-        train_sets, test_sets = generate_traintest(tot_size, num_boot, trainable_inds, testable_inds)
         train_sets_hyper, test_sets_hyper = generate_traintest(tot_size, 10, hyper_inds, hyper_inds, train_perc=0.95)
-        np.save(fn_set + fn_pred + 'train_sets_hyper.npy', train_sets*1)
-        np.save(fn_set + fn_pred + 'test_sets_hyper.npy', test_sets*1)
+        np.save(fn_set + fn_pred + 'train_sets_hyper.npy', train_sets_hyper*1)
+        np.save(fn_set + fn_pred + 'test_sets_hyper.npy', test_sets_hyper*1)
         train_sets_hyper = train_sets_hyper > 0.5
         test_sets_hyper = test_sets_hyper > 0.5
        
@@ -101,7 +177,6 @@ if(__name__ == '__main__'):
         train_sets = np.load(fn_set + fn_pred + '_trainsets.npy') > 0.5
         test_sets = np.load(fn_set + fn_pred + '_testsets.npy') > 0.5
     except:
-        num_boot = 1000
         tot_size = sum([np.shape(xfi)[0] for xfi in Xfs_l])
         trainable_inds = np.ones(tot_size) > 0.5
         testable_inds = np.logical_not(hyper_inds)
@@ -117,47 +192,40 @@ if(__name__ == '__main__'):
     # Xf stim ~ raw 
     Xf_stim = [Xf[:,:,6:,:] for Xf in Xfs_l]
 
-    # stack olabs --> olab:
-    olab = np.vstack(olabs_l)
+    # load numpy data structures into shared memory arrays
+    sh_hyper_inds = shared_memory.SharedMemory(create=True, size=hyper_inds.nbytes)
 
     ## experiment: with stimulus context vs. without
  
-    # depth 1
+    # base run_config:
     mode = 4 # ~ random slope
     run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d1'
     rc = get_run_config(mode, run_id)
     rc['tree_depth'] = [2,1]
-    add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olab)
+    add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olabs_l, train_sets_hyper,
+            test_sets_hyper) 
     rc['l1_tree'] = [.01, 2.0]
-    rc['train_sets_hyper'] = train_sets_hyper
-    rc['test_sets_hyper'] = test_sets_hyper
-    
+
+    # create shared memory objects
+    # --> writes into run_config
+    create_shm(rc)
 
     # dstruct contains all the different rcs:
     dstruct = [rc]
 
-    # TODO: still need to test rc tiling
-    # also... are we going to have memory issues (maybe...) 
+    # TODO/TESTING: get combos:
+    s = 'l1_mlr_xf1' 
+    vals = [[.05, 1.0], [.02, 1.0], [.02, 2.0], [.05, 2.0]]
+    dstruct = new_run_config_axis(dstruct, s, vals)
 
     # hyperparameter testing
-    def bch(ds): 
-        return boot_cross_hyper(ds)
+    def bch(rc): 
+        convert_shmname_to_np(rc)
+        return boot_cross_hyper(rc)
 
+    # TODO: there should be a way to limit the number of processes in the pool
     MAXPROC = 5
-    for i in range(0, len(dstruct), MAXPROC):
-        endind = min(len(dstruct),i+MAXPROC)
-        dstruct_sub = dstruct[i:endind]
-        with Pool(len(dstruct_sub)) as p:
-            p.map(bch, dstruct_sub)
-
-
-    """
-    # wrapper for boost cross-validation:
-    def bcb(ds):
-        return boot_cross_boosted(ds)
-
-    with Pool(len(dstruct)) as p:
-        p.map(bcb, dstruct)
-    """
+    with Pool(MAXPROC) as p:
+        p.map(bch, dstruct)
 
 

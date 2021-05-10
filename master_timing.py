@@ -572,14 +572,18 @@ def new_run_config_axis(rc_list, s, vals):
 
 
 # add data to run_config
-def add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab):
-    rc['hyper_inds'] = copy.deepcopy(hyper_inds)
-    rc['train_sets'] = copy.deepcopy(train_sets)
-    rc['test_sets'] = copy.deepcopy(test_sets)
-    rc['Xf_net'] = copy.deepcopy(Xf_net)
-    rc['Xf_stim'] = copy.deepcopy(Xf_stim)
-    rc['worm_ids'] = copy.deepcopy(worm_ids)
-    rc['olab'] = copy.deepcopy(olab)
+def add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids, olab, train_sets_hyper=[], \
+        test_sets_hyper=[]):  
+    rc['hyper_inds'] = hyper_inds
+    rc['train_sets'] = train_sets
+    rc['test_sets'] = test_sets
+    rc['Xf_net'] = Xf_net
+    rc['Xf_stim'] = Xf_stim
+    rc['worm_ids'] = worm_ids
+    rc['olab'] = olab
+    rc['train_sets_hyper'] = train_sets_hyper
+    rc['test_sets_hyper'] = test_sets_hyper
+
 
 
 #### TODO: New plan

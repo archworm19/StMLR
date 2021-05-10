@@ -124,7 +124,7 @@ class Forest(Gate):
     # NOTE: tree outputs leaf probabilities ~ does not need to know output shapes
 
     # primary constructor
-    def __init__(self, tree_depth, tree_width, num_tree, xdim, even_reg=0.0, l1_mask=0.0):
+    def __init__(self, tree_depth, tree_width, num_tree, xdim, even_reg=0.0, l1_mask=0.0): 
       
         # save fields:
         self.tree_depth = tree_depth
@@ -139,6 +139,7 @@ class Forest(Gate):
         if(isinstance(l1_mask, float) or isinstance(l1_mask,int)):
             self.l1_mask = tf.constant(l1_mask)
         else:
+            print('testing: using generated l1 mask!') 
             self.l1_mask = tf.constant(np.reshape(l1_mask, (1,1,1,-1)).astype(np.float32))
 
         # train vars:
