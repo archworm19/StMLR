@@ -130,8 +130,6 @@ def convert_np_to_fn(rc):
 # takes in the npz dictionary
 def conv_npz_l(d):
     l = []
-    print(d)
-    print(d.keys())
     for i in range(len(d.keys())):
         l.append(d['arr_' + str(i)])
     return l
@@ -147,8 +145,6 @@ def convert_fn_to_np(rc):
     target_keys = ['Xf_net', 'Xf_stim', 'worm_ids', 'olab'] 
     for tk in target_keys:
         if(tk in rc):
-            print(tk)
-            print(rc[tk])
             rc[tk] = conv_npz_l(np.load(rc[tk]))
 
 
@@ -161,11 +157,11 @@ if(__name__ == '__main__'):
 
     ## load dat: 
     import sys
-    #sys.path.append('/home/ztcecere/CodeRepository/PD/')
-    sys.path.append('/snl/scratch/ztcecere/PD')
+    sys.path.append('/home/ztcecere/CodeRepository/PD/')
+    #sys.path.append('/snl/scratch/ztcecere/PD')
     import data_loader
-    #rdir = '/data/ProcAiryData'
-    rdir = '/home/ztcecere/ProcAiryData'
+    rdir = '/data/ProcAiryData'
+    #rdir = '/home/ztcecere/ProcAiryData'
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
 
 
@@ -273,9 +269,9 @@ if(__name__ == '__main__'):
     dstruct = [rc]
 
     # TODO/TESTING: get combos:
-    s = 'l1_mlr_xf1' 
-    vals = [[.05, 1.0], [.02, 1.0], [.02, 2.0], [.05, 2.0]]
-    dstruct = new_run_config_axis(dstruct, s, vals)
+    #s = 'l1_mlr_xf1' 
+    #vals = [[.05, 1.0], [.02, 1.0], [.02, 2.0], [.05, 2.0]]
+    #dstruct = new_run_config_axis(dstruct, s, vals)
 
     # hyperparameter testing
     def bch(rc): 

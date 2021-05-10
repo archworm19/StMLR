@@ -272,6 +272,9 @@ def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l
     wid_mask = np.ones((np.shape(worm_ids)[-1])) * l1_mlr_wid
     wid_mask[0] = wid0_factor
 
+    print(np.shape(Xf1_stack))
+    print(np.shape(Xf2_stack))
+
     Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack],[Xf2_stack]]]
     model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask], [l1_xf2mlr_mask]]]
     return Xf_list, model_masks
@@ -323,9 +326,8 @@ def boot_cross_hyper(rc):
 
     # if directory exists --> stop
     # else --> create and populate it
-    if(os.path.isdir(rc['dir_str'])):
-        return
-    os.mkdir(rc['dir_str'])
+    if(not os.path.isdir(rc['dir_str'])):
+        os.mkdir(rc['dir_str'])
     # save metadata:
     save_metadata(rc)
 
@@ -333,21 +335,15 @@ def boot_cross_hyper(rc):
     if(rc['mode'] in [0,1,2,3]):
         Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
     else: # rand slope
+        print('wtf?')
         worm_ids = join_worm_ids_l(rc['worm_ids'])
         Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
         # stack olab:
         rc['olab'] = np.vstack(rc['olab']) 
 
-    ## build data structures for hyper set:
-    print(np.shape(rc['olab']))
-    print(np.shape(Xf_list[0][0]))
-    return 
-    dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])
-
     # glean info from data structs:
     output_cells = np.shape(rc['olab'])[-2]
     output_classes = np.shape(rc['olab'])[-1]
-    xdims = st_mlr.get_xdims(dat_hyper)
 
     # hyper train and test errors:
     htre_errs = []
@@ -358,17 +354,18 @@ def boot_cross_hyper(rc):
         train_inds = rc['train_sets_hyper'][i]
         test_inds = rc['test_sets_hyper'][i]
 
+        # build data structure for current train/test sets:
+        dat_hyper_train, dat_hyper_test = st_mlr.dat_gen(rc['olab'], Xf_list, train_inds, test_inds)
+
+        xdims = st_mlr.get_xdims(dat_hyper_train)
+
         # build architecture ~ used for all boots:
         B = st_mlr.arch_gen(output_cells, output_classes, xdims, model_masks,
                 rc['tree_depth'], rc['tree_width'], rc['num_model'], rc['lr'], even_reg=rc['even_reg'])
 
         ## initial fit to hyper set:
         # mode == '' in this case --> train full model
-        print(np.shape(train_inds))
-        print(np.shape(dat_hyper))
-        print(train_inds)
-        print(test_inds)
-        tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper[train_inds], dat_hyper[test_inds], num_epochs=rc['num_epoch'], mode='')
+        tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper_train, dat_hyper_test, num_epochs=rc['num_epoch'], mode='')
         # 3 best trees form the mask:
         sinds = np.argsort(tr_errs[-1])
         f_mask = np.zeros((rc['num_model']))
@@ -394,9 +391,8 @@ def boot_cross_boosted(rc):
 
     # if directory exists --> stop
     # else --> create and populate it
-    if(os.path.isdir(rc['dir_str'])):
-        return
-    os.mkdir(rc['dir_str'])
+    if(not os.path.isdir(rc['dir_str'])):
+        os.mkdir(rc['dir_str'])
     # save metadata:
     save_metadata(rc)
 
