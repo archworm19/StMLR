@@ -157,11 +157,11 @@ if(__name__ == '__main__'):
 
     ## load dat: 
     import sys
-    sys.path.append('/home/ztcecere/CodeRepository/PD/')
-    #sys.path.append('/snl/scratch/ztcecere/PD')
+    #sys.path.append('/home/ztcecere/CodeRepository/PD/')
+    sys.path.append('/snl/scratch/ztcecere/PD')
     import data_loader
-    rdir = '/data/ProcAiryData'
-    #rdir = '/home/ztcecere/ProcAiryData'
+    #rdir = '/data/ProcAiryData'
+    rdir = '/home/ztcecere/ProcAiryData'
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
 
 
@@ -269,9 +269,9 @@ if(__name__ == '__main__'):
     dstruct = [rc]
 
     # TODO/TESTING: get combos:
-    #s = 'l1_mlr_xf1' 
-    #vals = [[.05, 1.0], [.02, 1.0], [.02, 2.0], [.05, 2.0]]
-    #dstruct = new_run_config_axis(dstruct, s, vals)
+    s = 'l1_mlr_xf1' 
+    vals = [[.05, 1.0], [.02, 1.0], [.02, 2.0], [.05, 2.0]]
+    dstruct = new_run_config_axis(dstruct, s, vals)
 
     # hyperparameter testing
     def bch(rc): 
