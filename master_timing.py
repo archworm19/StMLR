@@ -199,8 +199,6 @@ def generate_traintest(num_blocks, num_boot, trainable_inds, testable_inds, trai
 # 2: separate model set for Xf2
 # 3: same as 2 + stack Xf1 and Xf2 in second gate network ~ test stimulus context
 def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, wid0_factor=0.5, mode=0):
-    print('XF1 shape')
-    print(np.shape(Xf1))
     # base masks
     xf1_mask = np.ones((np.shape(Xf1)[-1]*np.shape(Xf1)[-2]))
     xf2_mask = np.ones((np.shape(Xf2)[-1]*np.shape(Xf2)[-2]))
@@ -312,7 +310,6 @@ def save_metadata(rc):
     for ms in meta_strs:
         bstr = bstr + ms + ': ' + str(rc[ms]) + '\n'
     text_file = open(os.path.join(rc['dir_str'], 'metadata.txt'),'w')
-    print(bstr)
     text_file.write(bstr)
     text_file.close()
 
@@ -338,8 +335,13 @@ def boot_cross_hyper(rc):
     else: # rand slope
         worm_ids = join_worm_ids_l(rc['worm_ids'])
         Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+        # stack olab:
+        rc['olab'] = np.vstack(rc['olab']) 
 
     ## build data structures for hyper set:
+    print(np.shape(rc['olab']))
+    print(np.shape(Xf_list[0][0]))
+    return 
     dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])
 
     # glean info from data structs:
@@ -362,6 +364,10 @@ def boot_cross_hyper(rc):
 
         ## initial fit to hyper set:
         # mode == '' in this case --> train full model
+        print(np.shape(train_inds))
+        print(np.shape(dat_hyper))
+        print(train_inds)
+        print(test_inds)
         tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper[train_inds], dat_hyper[test_inds], num_epochs=rc['num_epoch'], mode='')
         # 3 best trees form the mask:
         sinds = np.argsort(tr_errs[-1])
@@ -400,6 +406,8 @@ def boot_cross_boosted(rc):
     else: # rand slope
         worm_ids = join_worm_ids_l(rc['worm_ids'])
         Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+        # stack olab:
+        rc['olab'] = np.vstack(rc['olab']) 
 
     ## build data structures for hyper set:
     dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])

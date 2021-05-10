@@ -3,7 +3,7 @@ import numpy.random as npr
 import os
 import pylab as plt
 from multiprocessing import Pool
-from multiprocessing import shared_memory
+#from multiprocessing import shared_memory
 import copy
 
 from master_timing import boot_cross_boosted
@@ -23,6 +23,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 plt.rcParams.update({'font.size': 14})
 
 
+"""
 #### Shared Memory Solution
 # requires python3.8
 
@@ -94,32 +95,43 @@ def convert_shmname_to_np(rc):
             # replace in run_config:
             rc[tk] = cur_v
 
+"""
+
 
 #### FileSystem Soln
 # rc holds filenames --> each process loads and replaces
 # NOTE: save complete path
 
 
+# make directories here
 def convert_np_to_fn(rc):
     target_keys = ['hyper_inds', 'train_sets', 'test_sets', 'train_sets_hyper', 'test_sets_hyper']
     root_dir = rc['dir_str']
+
+    # if directory exists --> stop
+    # else --> create and populate it
+    if(not os.path.isdir(root_dir)):
+        os.mkdir(rc['dir_str'])
+
     for tk in target_keys:
         if(tk in rc):
-            full_path = os.path.join(root_dir, tk)
-            np.save(full_path, rc[tk])
+            full_path = os.path.join(root_dir, tk+'.npy')
+            np.save(full_path, rc[tk]*1)
             rc[tk] = full_path
 
     target_keys = ['Xf_net', 'Xf_stim', 'worm_ids', 'olab'] 
     for tk in target_keys:
         if(tk in rc):
-            full_path = os.path.join(root_dir, tk)
-            np.savez(full_path, rc[tk])
+            full_path = os.path.join(root_dir, tk+'.npz')
+            np.savez(full_path, *rc[tk])
             rc[tk] = full_path
 
 # convert npz to list
 # takes in the npz dictionary
 def conv_npz_l(d):
     l = []
+    print(d)
+    print(d.keys())
     for i in range(len(d.keys())):
         l.append(d['arr_' + str(i)])
     return l
@@ -130,11 +142,13 @@ def convert_fn_to_np(rc):
     target_keys = ['hyper_inds', 'train_sets', 'test_sets', 'train_sets_hyper', 'test_sets_hyper']
     for tk in target_keys:
         if(tk in rc):
-            rc[tk] = np.load(rc[tk])
+            rc[tk] = np.load(rc[tk]) > 0.5
 
     target_keys = ['Xf_net', 'Xf_stim', 'worm_ids', 'olab'] 
     for tk in target_keys:
         if(tk in rc):
+            print(tk)
+            print(rc[tk])
             rc[tk] = conv_npz_l(np.load(rc[tk]))
 
 
@@ -237,13 +251,13 @@ if(__name__ == '__main__'):
     Xf_stim = [Xf[:,:,6:,:] for Xf in Xfs_l]
 
     # load numpy data structures into shared memory arrays
-    sh_hyper_inds = shared_memory.SharedMemory(create=True, size=hyper_inds.nbytes)
+    #sh_hyper_inds = shared_memory.SharedMemory(create=True, size=hyper_inds.nbytes)
 
     ## experiment: with stimulus context vs. without
  
     # base run_config:
     mode = 4 # ~ random slope
-    run_id = fn_set + fn_pred + 'mode' + str(mode) + '_d1'
+    run_id = fn_set + fn_pred + 'mode' + str(mode)
     rc = get_run_config(mode, run_id)
     rc['tree_depth'] = [2,1]
     add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olabs_l, train_sets_hyper,
@@ -251,6 +265,7 @@ if(__name__ == '__main__'):
     rc['l1_tree'] = [.01, 2.0]
 
 
+    # NOTE: converting here --> all data stored in first directory
     # save big datastructures to lists... pass around filenames:
     convert_np_to_fn(rc)
 
