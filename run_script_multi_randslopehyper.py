@@ -154,7 +154,6 @@ if(__name__ == '__main__'):
     VOLS_PER_SECOND = 1.5
     CELL_MANIFEST = ['AVA', 'RME', 'SMDV', 'SMDD', 'ON', 'OFF']
 
-
     ## load dat: 
     import sys
     #sys.path.append('/home/ztcecere/CodeRepository/PD/')
@@ -163,27 +162,37 @@ if(__name__ == '__main__'):
     #rdir = '/data/ProcAiryData'
     rdir = '/home/ztcecere/ProcAiryData'
     inp, Y, inp_zim, Y_zim = data_loader.load_data(rdir)
+    # load ztc buffer-to-buffer
+    inp_ztcbuf, Y_ztcbuf = data_loader.load_data_ztcNoStim(rdir)
+    # load jh buffer-to-buffer
+    inp_jhbuf, Y_jhbuf = data_loader.load_data_jh_buf2buf_trial2(rdir) 
+
+    # add On and Off stimuli:
+    # AND separate op50 and buffer effects
+    Yf0 = [Y,Y_zim,Y_ztcbuf,Y_jhbuf]
+    inp0 = [inp,inp_zim,inp_ztcbuf,inp_jhbuf]
+    op50_expand = [1,1,0,0]
+    for i, Yc in enumerate(Yf0): 
+        op50_bit = op50_expand[i]
+        for j, Ysub in enumerate(Yc):
+            inpc = np.reshape(inp0[i][j],(-1))
+            off_inpc = 1 - inpc
+            first_on = np.where((inpc == 1))[0][0]
+            off_inpc[:first_on] = 0
+            add_i = np.hstack((inpc[:,None],off_inpc[:,None],inpc[:,None]*op50_bit,off_inpc[:,None]*op50_bit))
+            Yf0[i][j] = np.hstack((Ysub, add_i))
 
 
     ## Tree Boosting Analysis
 
     # set indicator
+    # combine like conditions... here: zim and ztc_buf are the same
     fn_set = 'all'
-    Y2 = [Y, Y_zim]
-    inp2 = [inp, inp_zim]
+    Y2 = [Yf0[0], Yf0[1] + Yf0[2], Yf0[3]]
 
     # prediction type:
     fn_pred = 'RA'
     targ_cells = np.array([0,1])
-
-    # add On and Off stimuli:
-    for i, Yc in enumerate(Y2):
-        for j, Ysub in enumerate(Yc):
-            inpc = inp2[i][j][:,0]
-            off_inpc = 1 - inpc
-            first_on = np.where((inpc == 1))[0][0]
-            off_inpc[:first_on] = 0
-            Y2[i][j] = np.hstack((Ysub, inpc[:,None], off_inpc[:,None]))
 
     # general params: 
     in_cells = np.array([0,1,2,3])
@@ -195,7 +204,7 @@ if(__name__ == '__main__'):
     Xfs_l, olabs_l, worm_ids_l, fb = [], [], [], []
     # iter thru conditions:
     for i, Yc in enumerate(Y2): 
-        basemus, X, worm_ids, t0s = build_tensors(Yc, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=6)
+        basemus, X, worm_ids, t0s = build_tensors(Yc, targ_cells, in_cells, in_cells_offset, hist_len=42, dt=6)
 
         # get labels and filtered X
         olab = label_basemus(basemus, thrs=[-.06, -.02, .02, .06])
@@ -218,7 +227,7 @@ if(__name__ == '__main__'):
         hyper_inds = npr.rand(tot_size) < 0.3
         np.save(fn_set + fn_pred + 'hyper_inds', hyper_inds*1)
         # hyperparameter train/test set generation:
-        train_sets_hyper, test_sets_hyper = generate_traintest(tot_size, 10, hyper_inds, hyper_inds, train_perc=0.95)
+        train_sets_hyper, test_sets_hyper = generate_traintest(tot_size, num_boot, hyper_inds, hyper_inds, train_perc=0.95)
         np.save(fn_set + fn_pred + 'train_sets_hyper.npy', train_sets_hyper*1)
         np.save(fn_set + fn_pred + 'test_sets_hyper.npy', test_sets_hyper*1)
         train_sets_hyper = train_sets_hyper > 0.5
@@ -268,9 +277,19 @@ if(__name__ == '__main__'):
     # dstruct contains all the different rcs:
     dstruct = [rc]
 
-    # TODO/TESTING: get combos:
+    # get hyperparameter combos:
+    
+    # Xf_net l1 
     s = 'l1_mlr_xf1' 
-    vals = [[.05, 1.0], [.02, 1.0], [.02, 2.0], [.05, 2.0]]
+    vals = [[.01, 1.0], [.02, 1.0], [.02, 2.0], [.01, 2.0]]
+    dstruct = new_run_config_axis(dstruct, s, vals)
+    # Xf_stim l1
+    s = 'l1_mlr_xf2' 
+    vals = [[.1, 1.0], [.15, 1.0], [.1, 2.0], [.15, 2.0]]
+    dstruct = new_run_config_axis(dstruct, s, vals)
+    # boost depth:
+    s = 'tree_depth'
+    vals = [[2,2],[2,1]]
     dstruct = new_run_config_axis(dstruct, s, vals)
 
     # hyperparameter testing
@@ -278,7 +297,7 @@ if(__name__ == '__main__'):
         convert_fn_to_np(rc)
         return boot_cross_hyper(rc)
 
-    # TODO: there should be a way to limit the number of processes in the pool
+    # limit number of processes in pool
     MAXPROC = 5
     with Pool(MAXPROC) as p:
         p.map(bch, dstruct)

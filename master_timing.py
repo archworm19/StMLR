@@ -272,11 +272,8 @@ def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l
     wid_mask = np.ones((np.shape(worm_ids)[-1])) * l1_mlr_wid
     wid_mask[0] = wid0_factor
 
-    print(np.shape(Xf1_stack))
-    print(np.shape(Xf2_stack))
-
-    Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack],[Xf2_stack]]]
-    model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask], [l1_xf2mlr_mask]]]
+    Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack,Xf2_stack],[Xf2_stack]]]
+    model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask,l1_xf2mlr_mask], [l1_xf2mlr_mask]]]
     return Xf_list, model_masks
 
 
