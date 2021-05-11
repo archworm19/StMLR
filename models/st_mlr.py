@@ -139,7 +139,6 @@ class Forest(Gate):
         if(isinstance(l1_mask, float) or isinstance(l1_mask,int)):
             self.l1_mask = tf.constant(l1_mask)
         else:
-            print('testing: using generated l1 mask!') 
             self.l1_mask = tf.constant(np.reshape(l1_mask, (1,1,1,-1)).astype(np.float32))
 
         # train vars:
@@ -741,11 +740,6 @@ def arch_gen(output_cells, output_classes, xdims, model_masks, tree_depths,
 
     if(len(lrs) == 0):
         lrs = [-1 for k in range(len(tree_depths))]
-
-    print(tree_depths)
-    print(len(xdims))
-    print(len(model_masks))
-    print(tree_widths)
 
     # build architecture
     arch = []

@@ -332,7 +332,6 @@ def boot_cross_hyper(rc):
     if(rc['mode'] in [0,1,2,3]):
         Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
     else: # rand slope
-        print('wtf?')
         worm_ids = join_worm_ids_l(rc['worm_ids'])
         Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
         # stack olab:
