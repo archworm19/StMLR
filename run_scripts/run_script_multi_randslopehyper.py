@@ -6,21 +6,10 @@ from multiprocessing import Pool
 #from multiprocessing import shared_memory
 import copy
 
-from master_timing import boot_cross_boosted
-from master_timing import boot_cross_hyper
-from master_timing import pulse_expand
-from master_timing import build_tensors
-from master_timing import label_basemus
-from master_timing import filterX
-from master_timing import generate_traintest
-from master_timing import get_run_config
-from master_timing import add_dat_rc
-from master_timing import new_run_config_axis
+from ..model_wrappers import master_timing as mt
 
-
+# enforces run on cpu
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-
-plt.rcParams.update({'font.size': 14})
 
 
 """
@@ -204,11 +193,11 @@ if(__name__ == '__main__'):
     Xfs_l, olabs_l, worm_ids_l, fb = [], [], [], []
     # iter thru conditions:
     for i, Yc in enumerate(Y2): 
-        basemus, X, worm_ids, t0s = build_tensors(Yc, targ_cells, in_cells, in_cells_offset, hist_len=42, dt=6)
+        basemus, X, worm_ids, t0s = mt.build_tensors(Yc, targ_cells, in_cells, in_cells_offset, hist_len=42, dt=6)
 
         # get labels and filtered X
-        olab = label_basemus(basemus, thrs=[-.06, -.02, .02, .06])
-        Xf,fb = filterX(X)
+        olab = mt.label_basemus(basemus, thrs=[-.06, -.02, .02, .06])
+        Xf,fb = mt.filterX(X)
 
         # save:
         Xfs_l.append(Xf)
@@ -227,7 +216,7 @@ if(__name__ == '__main__'):
         hyper_inds = npr.rand(tot_size) < 0.3
         np.save(fn_set + fn_pred + 'hyper_inds', hyper_inds*1)
         # hyperparameter train/test set generation:
-        train_sets_hyper, test_sets_hyper = generate_traintest(tot_size, num_boot, hyper_inds, hyper_inds, train_perc=0.95)
+        train_sets_hyper, test_sets_hyper = mt.generate_traintest(tot_size, num_boot, hyper_inds, hyper_inds, train_perc=0.95)
         np.save(fn_set + fn_pred + 'train_sets_hyper.npy', train_sets_hyper*1)
         np.save(fn_set + fn_pred + 'test_sets_hyper.npy', test_sets_hyper*1)
         train_sets_hyper = train_sets_hyper > 0.5
@@ -243,7 +232,7 @@ if(__name__ == '__main__'):
         tot_size = sum([np.shape(xfi)[0] for xfi in Xfs_l])
         trainable_inds = np.ones(tot_size) > 0.5
         testable_inds = np.logical_not(hyper_inds)
-        train_sets, test_sets = generate_traintest(tot_size, num_boot, trainable_inds, testable_inds)
+        train_sets, test_sets = mt.generate_traintest(tot_size, num_boot, trainable_inds, testable_inds)
         np.save(fn_set + fn_pred + '_trainsets.npy', train_sets*1)
         np.save(fn_set + fn_pred + '_testsets.npy', test_sets*1)
         train_sets = train_sets > 0.5
@@ -263,9 +252,9 @@ if(__name__ == '__main__'):
     # base run_config:
     mode = 4 # ~ random slope
     run_id = fn_set + fn_pred + 'mode' + str(mode)
-    rc = get_run_config(mode, run_id)
+    rc = mt.get_run_config(mode, run_id)
     rc['tree_depth'] = [2,1]
-    add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olabs_l, train_sets_hyper,
+    mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olabs_l, train_sets_hyper,
             test_sets_hyper) 
     rc['l1_tree'] = [.01, 2.0]
 
@@ -282,20 +271,23 @@ if(__name__ == '__main__'):
     # Xf_net l1 
     s = 'l1_mlr_xf1' 
     vals = [[.01, 1.0], [.02, 1.0], [.02, 2.0], [.01, 2.0]]
-    dstruct = new_run_config_axis(dstruct, s, vals)
+    dstruct = mt.new_run_config_axis(dstruct, s, vals)
     # Xf_stim l1
     s = 'l1_mlr_xf2' 
     vals = [[.1, 1.0], [.15, 1.0], [.1, 2.0], [.15, 2.0]]
-    dstruct = new_run_config_axis(dstruct, s, vals)
+    dstruct = mt.new_run_config_axis(dstruct, s, vals)
     # boost depth:
     s = 'tree_depth'
     vals = [[2,2],[2,1]]
-    dstruct = new_run_config_axis(dstruct, s, vals)
+    dstruct = mt.new_run_config_axis(dstruct, s, vals)
+
+    print(len(dstruct))
+    input('cont?')
 
     # hyperparameter testing
     def bch(rc): 
         convert_fn_to_np(rc)
-        return boot_cross_hyper(rc)
+        return mt.boot_cross_hyper(rc)
 
     # limit number of processes in pool
     MAXPROC = 5

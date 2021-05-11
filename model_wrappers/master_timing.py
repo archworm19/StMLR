@@ -14,7 +14,7 @@ import pylab as plt
 import os
 import copy
 
-import st_mlr
+from ..models import st_mlr 
 
 
 #### Wavelets
@@ -584,13 +584,6 @@ def add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids,
     rc['olab'] = olab
     rc['train_sets_hyper'] = train_sets_hyper
     rc['test_sets_hyper'] = test_sets_hyper
-
-
-
-#### TODO: New plan
-# 1. automated search over hyperparam set (leave-N-out) for all run_configs
-# 2. find best performers for primary axis 
-# 3. run cross-validation with these best performers
 
 
 
