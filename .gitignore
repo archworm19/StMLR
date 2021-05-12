@@ -8,6 +8,9 @@ __pycache__/
 *.npz
 *.swp
 
+# sample data exception:
+!sample_data/sample_dat.npz
+
 # metadata:
 *metadata.txt
 
