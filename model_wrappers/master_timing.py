@@ -191,36 +191,6 @@ def generate_traintest(num_blocks, num_boot, trainable_inds, testable_inds, trai
 
 #### Boosted Tree Analyses
 
-# boosting experiments
-# defined by Xf_gate,Xf_drive pairs and masks
-# modes:
-# 0: does not use Xf2
-# 1: stack Xf1 and Xf2 in drive/mlr
-# 2: separate model set for Xf2
-# 3: same as 2 + stack Xf1 and Xf2 in second gate network ~ test stimulus context
-def boost_lists(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, wid0_factor=0.5, mode=0):
-    # base masks
-    xf1_mask = np.ones((np.shape(Xf1)[-1]*np.shape(Xf1)[-2]))
-    xf2_mask = np.ones((np.shape(Xf2)[-1]*np.shape(Xf2)[-2]))
-    wid_mask = np.ones((np.shape(worm_ids)[-1]))
-    wid_mask[0] = wid0_factor
-
-    if(mode == 1):
-        Xf_list = [[[Xf1],[Xf1,Xf2,worm_ids]]]
-        model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,xf2_mask*l1_mlr_xf2,wid_mask*l1_mlr_wid]]]
-    elif(mode == 2):
-        Xf_list = [[[Xf1],[Xf1,worm_ids]],[[Xf1],[Xf2]]]
-        model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,wid_mask*l1_mlr_wid]],[[xf1_mask*l1_tree],[xf2_mask*l1_mlr_xf2]]]
-    elif(mode == 3):
-        Xf_list = [[[Xf1],[Xf1,worm_ids]],[[Xf1,Xf2],[Xf2]]]
-        model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,wid_mask*l1_mlr_wid]],[[xf1_mask*l1_tree,xf2_mask*l1_tree],[xf2_mask*l1_mlr_xf2]]]
-    else: # mode 0
-        Xf_list = [[[Xf1],[Xf1,worm_ids]]]
-        model_masks = [[[xf1_mask*l1_tree],[xf1_mask*l1_mlr_xf1,wid_mask*l1_mlr_wid]]]
-    return Xf_list, model_masks
- 
-
-
 # random slope xf
 def generate_rand_slope_xf(Xf_l):
     # shared term:
@@ -248,16 +218,20 @@ def generate_rand_slope_l1(Xf_l, l1_base, l1_variance):
     return np.hstack((l1_l))
 
 
+# modes: boosting experiments
+# 0(or other): does not use Xf2
+# 1: stack Xf1 and Xf2 in drive/mlr
+# 2: separate model set for Xf2
+# 4: same as 2 + stack Xf1 and Xf2 in second gate network ~ test stimulus context
 
 # boost lists for random slope models
-# mode 4 ~ Xfs = lists of numpy arrays
 # ... make 'common data' = shared across conditions
 # ... stack condition-speicific data copies on common data
 # ... use l1 factors to further penalize additional terms
 # ... all l1s are now lists/tuples = (base l1, l1_factor for group terms) 
 # Xf1 shape = num_block x t_per_block x in_cell x xdim
 # NOTE: Xf1 should be same shape across conditions
-def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, wid0_factor=0.5, mode=4):
+def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l1_mlr_wid, wid0_factor=0.5, mode=0):
     # Xf1
     Xf1_stack = generate_rand_slope_xf(Xf1) 
     # Xf2:
@@ -272,8 +246,19 @@ def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l
     wid_mask = np.ones((np.shape(worm_ids)[-1])) * l1_mlr_wid
     wid_mask[0] = wid0_factor
 
-    Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack,Xf2_stack],[Xf2_stack]]]
-    model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask,l1_xf2mlr_mask], [l1_xf2mlr_mask]]]
+    if(mode==1):
+        Xf_list = [[[Xf1_stack],[Xf1_stack, Xf2_stack, worm_ids]]]
+        model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, l1_xf2mlr_mask, wid_mask]]]
+    elif(mode==2):
+        Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack],[Xf2_stack]]]
+        model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask], [l1_xf2mlr_mask]]]
+    elif(mode==4):
+        Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack,Xf2_stack],[Xf2_stack]]]
+        model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask,l1_xf2mlr_mask], [l1_xf2mlr_mask]]]
+    else: # mode 0 / default
+        Xf_list = [[[Xf1_stack],[Xf1_stack, worm_ids]]]
+        model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]]]
+
     return Xf_list, model_masks
 
 
@@ -329,13 +314,10 @@ def boot_cross_hyper(rc):
     save_metadata(rc)
 
     # build Xf_list and model masks:
-    if(rc['mode'] in [0,1,2,3]):
-        Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
-    else: # rand slope
-        worm_ids = join_worm_ids_l(rc['worm_ids'])
-        Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
-        # stack olab:
-        rc['olab'] = np.vstack(rc['olab']) 
+    worm_ids = join_worm_ids_l(rc['worm_ids'])
+    Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+    # stack olab:
+    rc['olab'] = np.vstack(rc['olab']) 
 
     # glean info from data structs:
     output_cells = np.shape(rc['olab'])[-2]
@@ -393,13 +375,10 @@ def boot_cross_boosted(rc):
     save_metadata(rc)
 
     # build Xf_list and model masks:
-    if(rc['mode'] in [0,1,2,3]):
-        Xf_list, model_masks = boost_lists(rc['Xf_net'], rc['Xf_stim'], rc['worm_ids'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
-    else: # rand slope
-        worm_ids = join_worm_ids_l(rc['worm_ids'])
-        Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
-        # stack olab:
-        rc['olab'] = np.vstack(rc['olab']) 
+    worm_ids = join_worm_ids_l(rc['worm_ids'])
+    Xf_list, model_masks = boost_lists_randslope(rc['Xf_net'], rc['Xf_stim'], worm_ids, rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
+    # stack olab:
+    rc['olab'] = np.vstack(rc['olab']) 
 
     ## build data structures for hyper set:
     dat_hyper, null = st_mlr.dat_gen(rc['olab'], Xf_list, rc['hyper_inds'], rc['hyper_inds'])
@@ -459,59 +438,6 @@ def boot_cross_boosted(rc):
     return B, f_mask, sinds
 
 
-# refit ~ starts from initialize B object
-# requires 'refit' data structures:
-# 1. Xf_net_refit, 2. Xf_stim_refit, 3. worm_ids_refit, 4. train_sets_refit, 5. test_sets_refit, 6. olab_refit
-def boot_cross_boosted_refit(rc, B, f_mask, sinds): 
-
-    # build Xf_list and model masks:
-    Xf_list, model_masks = boost_lists(rc['Xf_net_refit'], rc['Xf_stim_refit'], rc['worm_ids_refit'], rc['l1_tree'], rc['l1_mlr_xf1'], rc['l1_mlr_xf2'], rc['l1_mlr_wid'], mode=rc['mode'])
-
-    ## fit mlr/drives to each bootstrap
-    # --> save forest errors
-    save_loss = []
-    save_train_vars = []
-    for i in range(np.shape(rc['train_sets_refit'])[0]):
-        train_inds = rc['train_sets_refit'][i]
-        test_inds = rc['test_sets_refit'][i]
-
-        # regenerate datasets:
-        dat_train, dat_test = st_mlr.dat_gen(rc['olab_refit'], Xf_list, train_inds, test_inds)
-
-        # mode=mlr --> trains only driver models = convex
-        tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_train, dat_test, num_epochs=rc['num_epoch'], mode='mlr')
-
-        # get forest error on test set:
-        f_loss = B.forest_loss(dat_test[0], dat_test[1], f_mask).numpy()
-        save_loss.append(f_loss)
-
-        np.save(os.path.join(rc['dir_str'], 'refit_boosted_err'), np.array(save_loss))
-
-        # save training vars:
-        if(len(save_train_vars) == 0):
-            # initialize:
-            for i in range(len(B.model_pairs)):
-                for j in range(len(B.model_pairs[i])):
-                    save_train_vars.append([B.model_pairs[i][j].get_analysis_vars(sinds[:3])])
-        else:
-            # zip:
-            count = 0
-            for i in range(len(B.model_pairs)):
-                for j in range(len(B.model_pairs[i])):
-                    save_train_vars[count].append(B.model_pairs[i][j].get_analysis_vars(sinds[:3]))
-                    count += 1
-        np.savez(os.path.join(rc['dir_str'], 'refit_boosted_tv'), *save_train_vars)
-    return B, f_mask
-
-
-
-# triple fit
-# 1/2. fit to first dataset (hyperparam and regular)
-# 3. refit on second dataset (trees are fixed)
-def triple_fit(rc): 
-    B, f_mask, sinds = boot_cross_boosted(rc)
-    boot_cross_boosted_refit(rc, B, f_mask, sinds)
-
 
 # get basic run configuration
 # returns python dict with default model parameters
@@ -530,25 +456,18 @@ def get_run_config(mode, run_id):
     d['worm_ids'] = []
     d['olab'] = []
     # shared tree info:
-    d['l1_tree'] = .01 # l1 regularization term for tree features
-    d['l1_mlr_xf1'] = .05 # l1 regularization term for baseline St-MLR model
-    d['l1_mlr_xf2'] = 0.1 # l1 regularization term for secondary (typically stimulus) St-MLR model
+    d['l1_tree'] = [.01,1.0] # l1 regularization term for tree features
+    d['l1_mlr_xf1'] = [.01,1.0] # l1 regularization term for baseline St-MLR model (and factor for variance terms)
+    d['l1_mlr_xf2'] = [0.1,1.0] # l1 regularization term for secondary (typically stimulus) St-MLR model
     d['l1_mlr_wid'] = 0.1 # l1 regularization term for worm identity terms
     d['num_model'] = 25
     d['num_epoch'] = 30
     d['mode'] = mode
     d['lr'] = [] # ranks for MLR models... if empty --> full rank
     d['even_reg'] = 0.1 # entropy regularization --> ensures similar amounts of data to each leaf
-    if(mode in [2,3]): 
+    if(mode in [2,3,4]): 
         d['tree_width'] = [2,2]
         d['tree_depth'] = [2,2]
-    elif(mode == 4):
-        d['tree_width'] = [2,2]
-        d['tree_depth'] = [2,2]
-        # need to double up l1 terms (core penalty + cross-animal penalty)
-        d['l1_tree'] = [.01, 1.0] 
-        d['l1_mlr_xf1'] = [.05, 1.0] 
-        d['l1_mlr_xf2'] = [.1, 1.0] 
     else:
         d['tree_width'] = [2]
         d['tree_depth'] = [2]
