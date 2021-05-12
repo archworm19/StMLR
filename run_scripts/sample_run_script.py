@@ -20,7 +20,7 @@ if(__name__ == '__main__'):
 
     # sample data provided in sample_data directory
     # sample data = 4 cell cluster ca activity across 2 worms 
-    Y = np.load('../sample_data/sample_dat.npz')
+    Y = np.load('StMLR/sample_data/sample_dat.npz')
 
     # convert npz dictionary to list of numpy arrays:
     Yl = []
@@ -47,10 +47,10 @@ if(__name__ == '__main__'):
     # outer list = conditions; inner list = animals within condition
     #
     # all animals in same condition = random intercept-style model
-    Y2 = [Yl]
+    #Y2 = [Yl]
     # animals in differnt condition = random slope-style model
     # = each animal will get its own copy of all coefficients
-    #Y2 = [[Yl[0]], [Yl[1]]]
+    Y2 = [[Yl[0]], [Yl[1]]]
 
     # number of bootstraps for out-of-bootstrap cross-validation 
     num_boot = 5
@@ -81,6 +81,8 @@ if(__name__ == '__main__'):
     hyper_inds = np.ones((tot_size)) > 0.5
     # hyperparameter train/test set generation:
     train_sets_hyper, test_sets_hyper = mt.generate_traintest(tot_size, num_boot, hyper_inds, hyper_inds, train_perc=0.9)
+    train_sets_hyper = train_sets_hyper > 0.5
+    test_sets_hyper = test_sets_hyper > 0.5
  
     ## Model Configuration
     # mode 0 is the default model 
@@ -94,7 +96,7 @@ if(__name__ == '__main__'):
     # number of submodels = tree_width ** tree_depth
     rc['tree_depth'] = [2]
     # add required data to run_configuration
-    mt.add_dat_rc(rc, hyper_inds, [], [], Xfs_l, [], worm_ids_l, olabs_l, train_sets_hyper,
+    mt.add_dat_rc(rc, hyper_inds, [], [], Xfs_l, Xfs_l, worm_ids_l, olabs_l, train_sets_hyper,
             test_sets_hyper) 
 
     # run out-of-bootstrap cross-validation on set
