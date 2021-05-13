@@ -243,21 +243,23 @@ if(__name__ == '__main__'):
     # Xf stim ~ On/Off cells
     Xf_stim = [Xf[:,:,4:6,:] for Xf in Xfs_l]
     # no stim:
-    Xf_nos = [0.0*Xf[:,:,6:,:] for Xf in Xfs_l]
+    Xf_nos = [0.0*Xf[:,:,4:6,:] for Xf in Xfs_l]
 
     # load numpy data structures into shared memory arrays
     #sh_hyper_inds = shared_memory.SharedMemory(create=True, size=hyper_inds.nbytes)
+
+
 
     ## HYPER
 
     ## experiment: with stimulus context vs. without
  
     # base run_config:
-    mode = 2
-    run_id = fn_set + fn_pred + 'mode' + str(mode)
+    mode = 3
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + 'STIM'
     rc = mt.get_run_config(mode, run_id)
-    rc['tree_depth'] = [2,1]
-    mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olabs_l, train_sets_hyper,
+    rc['tree_depth'] = [2,2]
+    mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_nos, worm_ids_l, olabs_l, train_sets_hyper,
             test_sets_hyper) 
     rc['l1_tree'] = [.01, 2.0]
 
@@ -277,12 +279,12 @@ if(__name__ == '__main__'):
     dstruct = mt.new_run_config_axis(dstruct, s, vals)
     # Xf_stim l1
     s = 'l1_mlr_xf2' 
-    vals = [[.05, 1.0], [.1, 1.0], [.15, 1.0], [.05, 2.0], [.1, 2.0], [.15, 2.0]]
+    vals = [[.05, 1.0], [.1, 1.0], [.15, 1.0], [.05, 2.0], [.1, 2.0], [.15, 2.0], [.1, 0.5], [.2, 0.5], [.2,0.25]]
     dstruct = mt.new_run_config_axis(dstruct, s, vals)
     # boost depth:
-    s = 'tree_depth'
-    vals = [[2,2],[2,1]]
-    dstruct = mt.new_run_config_axis(dstruct, s, vals)
+    #s = 'tree_depth'
+    #vals = [[2,2],[2,1]]
+    #dstruct = mt.new_run_config_axis(dstruct, s, vals)
 
     # hyperparameter testing
     def bch(rc): 
@@ -294,33 +296,34 @@ if(__name__ == '__main__'):
     with Pool(MAXPROC) as p:
         p.map(bch, dstruct)
 
-    """
 
+    
+    """
     ## CROSS
+
     # stim config
-    mode = 2 # ~ random slope
+    mode = 3 # ~ random slope
     run_id = fn_set + fn_pred + 'mode' + str(mode) + 'STIMCELLTEST'
     rc = mt.get_run_config(mode, run_id)
-    mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim_oo, worm_ids_l, olabs_l, train_sets_hyper,
+    mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim, worm_ids_l, olabs_l, train_sets_hyper,
             test_sets_hyper) 
     rc['tree_depth'] = [2,2]
     rc['l1_tree'] = [.01, 2.0]
-    rc['l1_mlr_xf1'] = [.02, 1.0]
+    rc['l1_mlr_xf1'] = [.01, 2.0]
     rc['l1_mlr_xf2'] = [0.1, 2.0]
 
     # nostim config 
-    mode = 4 # ~ random slope
+    mode = 3 # ~ random slope
     run_id = fn_set + fn_pred + 'mode' + str(mode) + 'NOSTEST'
     rc = mt.get_run_config(mode, run_id)
     mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_nos, worm_ids_l, olabs_l, train_sets_hyper,
             test_sets_hyper) 
     rc['tree_depth'] = [2,1]
     rc['l1_tree'] = [.01, 2.0]
-    rc['l1_mlr_xf1'] = [.01, 1.0]
+    rc['l1_mlr_xf1'] = [.01, 2.0]
     rc['l1_mlr_xf2'] = [0.1, 1.0]
 
     # run:
     mt.boot_cross_boosted(rc)
-
 
     """

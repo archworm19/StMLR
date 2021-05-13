@@ -215,13 +215,14 @@ def generate_rand_slope_l1(Xf_l, l1_base, l1_variance):
     l1_l = [l1_base_np]
     for i in range(len(Xf_l)):
         l1_l.append(l1_base_np * l1_variance)
-    return np.hstack((l1_l))
+    return np.hstack((l1_l)), l1_base_np
 
 
 # modes: boosting experiments
 # 0(or other): does not use Xf2
 # 1: stack Xf1 and Xf2 in drive/mlr
 # 2: separate model set for Xf2
+# 3: tree only recieves fixed components (same as 2 otherwise) 
 # 4: same as 2 + stack Xf1 and Xf2 in second gate network ~ test stimulus context
 
 # boost lists for random slope models
@@ -237,11 +238,11 @@ def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l
     # Xf2:
     Xf2_stack = generate_rand_slope_xf(Xf2)
     # l1 tree:
-    l1_tree_mask = generate_rand_slope_l1(Xf1, l1_tree[0], l1_tree[1])
+    l1_tree_mask, l1_tree_mask_base = generate_rand_slope_l1(Xf1, l1_tree[0], l1_tree[1])
     # l1 mlr xf1:
-    l1_xf1mlr_mask = generate_rand_slope_l1(Xf1, l1_mlr_xf1[0], l1_mlr_xf1[1])
+    l1_xf1mlr_mask, l1_xf1mlr_mask_base = generate_rand_slope_l1(Xf1, l1_mlr_xf1[0], l1_mlr_xf1[1])
     # l1 mlr xf2:
-    l1_xf2mlr_mask = generate_rand_slope_l1(Xf2, l1_mlr_xf2[0], l1_mlr_xf2[1])
+    l1_xf2mlr_mask, l1_xf2mlr_mask_base = generate_rand_slope_l1(Xf2, l1_mlr_xf2[0], l1_mlr_xf2[1])
     # l1 mlr wid: intercepts...doesn't get tiled 
     wid_mask = np.ones((np.shape(worm_ids)[-1])) * l1_mlr_wid
     wid_mask[0] = wid0_factor
@@ -252,6 +253,11 @@ def boost_lists_randslope(Xf1, Xf2, worm_ids, l1_tree, l1_mlr_xf1, l1_mlr_xf2, l
     elif(mode==2):
         Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack],[Xf2_stack]]]
         model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask], [l1_xf2mlr_mask]]]
+    elif(mode==3):
+        Xf1_small_stack = np.vstack(Xf1)
+        l1_tree_small_stack = np.vstack(l1_tree_mask_base)
+        Xf_list = [[[Xf1_small_stack],[Xf1_stack,worm_ids]], [[Xf1_small_stack],[Xf2_stack]]]
+        model_masks = [[[l1_tree_small_stack],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_small_stack], [l1_xf2mlr_mask]]]
     elif(mode==4):
         Xf_list = [[[Xf1_stack],[Xf1_stack,worm_ids]], [[Xf1_stack,Xf2_stack],[Xf2_stack]]]
         model_masks = [[[l1_tree_mask],[l1_xf1mlr_mask, wid_mask]], [[l1_tree_mask,l1_xf2mlr_mask], [l1_xf2mlr_mask]]]
@@ -299,6 +305,36 @@ def save_metadata(rc):
     text_file.close()
 
 
+# greedy forest mask
+# 1. find best performing model
+# 2. iter thru other models --> best model to add to first for forest err?
+# 3. repeat 2
+def make_greedy_forest_mask(rc, B, dat_train, N=3): 
+    num_model = rc['num_model']
+    f_mask = np.zeros((num_model))
+    for i in range(N): 
+        print('cur fmask')
+        print(f_mask)
+        errs = []
+        for j in range(num_model):
+            if(f_mask[j] > 0.5):
+                errs.append(np.nan)
+                continue
+            f_mask_copy = copy.deepcopy(f_mask)
+            f_mask_copy[j] = 1
+            f_mask_copy = f_mask_copy / np.sum(f_mask_copy)
+            # evaluate train error:
+            f_loss = B.forest_loss(dat_train[0], dat_train[1], f_mask_copy.astype(np.float32)).numpy()
+            errs.append(f_loss)
+        print(errs)
+        # save best:
+        f_mask[np.nanargmin(np.array(errs))] = 1
+    # normalize and set to float:
+    f_mask = f_mask / np.sum(f_mask)
+    print('final f_mask')
+    print(f_mask)
+    return f_mask.astype(np.float32)
+
 
 ## Out-of-bootstrap cross-validation on hyper set
 # difference between hyper and test set?
@@ -345,13 +381,18 @@ def boot_cross_hyper(rc):
         # mode == '' in this case --> train full model
         tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper_train, dat_hyper_test, num_epochs=rc['num_epoch'], mode='')
         # 3 best trees form the mask:
-        sinds = np.argsort(tr_errs[-1])
-        f_mask = np.zeros((rc['num_model']))
-        f_mask[sinds[:3]] = (1.0/3.0)
-        f_mask = f_mask.astype(np.float32)
+        #sinds = np.argsort(tr_errs[-1])
+        #f_mask = np.zeros((rc['num_model']))
+        #f_mask[sinds[:3]] = (1.0/3.0)
+        #f_mask = f_mask.astype(np.float32)
 
-        htre_errs.append([np.sum(tr_errs * f_mask), np.sum(te_errs * f_mask)])
-        np.save(os.path.join(rc['dir_str'], 'hyper_errs'), np.array(htre_errs))
+        # greedily form mask:
+        f_mask = make_greedy_forest_mask(rc, B, dat_hyper_train, N=rc['num_model_test'])
+
+        # forest train error:
+        f_loss_train = B.forest_loss(dat_hyper_train[0], dat_hyper_train[1], f_mask).numpy()
+        f_loss_test = B.forest_loss(dat_hyper_test[0], dat_hyper_test[1], f_mask).numpy()
+        htre_errs.append([f_loss_train, f_loss_test])
 
 
 
@@ -396,10 +437,16 @@ def boot_cross_boosted(rc):
     # mode == '' in this case --> train full model
     tr_errs, te_errs = st_mlr.train_epochs_wrapper(B, dat_hyper, dat_hyper, num_epochs=rc['num_epoch'], mode='')
     # 3 best trees form the mask:
-    sinds = np.argsort(tr_errs[-1])
-    f_mask = np.zeros((rc['num_model']))
-    f_mask[sinds[:3]] = (1.0/3.0)
-    f_mask = f_mask.astype(np.float32)
+    #sinds = np.argsort(tr_errs[-1])
+    #f_mask = np.zeros((rc['num_model']))
+    #f_mask[sinds[:3]] = (1.0/3.0)
+    #f_mask = f_mask.astype(np.float32)
+
+    # greedily form mask:
+    f_mask = make_greedy_forest_mask(rc, B, dat_hyper, N=rc['num_model_test'])
+    sinds = np.where(f_mask > 0)[0]
+    print('sinds')
+    print(sinds)
 
     ## fit mlr/drives to each bootstrap
     # --> save forest errors
@@ -426,13 +473,13 @@ def boot_cross_boosted(rc):
             # initialize:
             for i in range(len(B.model_pairs)):
                 for j in range(len(B.model_pairs[i])):
-                    save_train_vars.append([B.model_pairs[i][j].get_analysis_vars(sinds[:3])])
+                    save_train_vars.append([B.model_pairs[i][j].get_analysis_vars(sinds)])
         else:
             # zip:
             count = 0
             for i in range(len(B.model_pairs)):
                 for j in range(len(B.model_pairs[i])):
-                    save_train_vars[count].append(B.model_pairs[i][j].get_analysis_vars(sinds[:3]))
+                    save_train_vars[count].append(B.model_pairs[i][j].get_analysis_vars(sinds))
                     count += 1
         np.savez(os.path.join(rc['dir_str'], 'boosted_tv'), *save_train_vars)
     return B, f_mask, sinds
@@ -461,7 +508,8 @@ def get_run_config(mode, run_id):
     d['l1_mlr_xf2'] = [0.1,1.0] # l1 regularization term for secondary (typically stimulus) St-MLR model
     d['l1_mlr_wid'] = 0.1 # l1 regularization term for worm identity terms
     d['num_model'] = 25
-    d['num_epoch'] = 30
+    d['num_model_test'] = 3 
+    d['num_epoch'] = 40
     d['mode'] = mode
     d['lr'] = [] # ranks for MLR models... if empty --> full rank
     d['even_reg'] = 0.1 # entropy regularization --> ensures similar amounts of data to each leaf
