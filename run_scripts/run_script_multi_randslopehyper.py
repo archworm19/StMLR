@@ -143,6 +143,11 @@ if(__name__ == '__main__'):
     VOLS_PER_SECOND = 1.5
     CELL_MANIFEST = ['AVA', 'RME', 'SMDV', 'SMDD', 'ON', 'OFF']
 
+    ## New approach:
+    # 1. use On/Off cells (when available)
+    # 2. every set gets its own condition
+    # 3. use previous 24 timepoints 
+
     ## load dat: 
     import sys
     #sys.path.append('/home/ztcecere/CodeRepository/PD/')
@@ -156,47 +161,41 @@ if(__name__ == '__main__'):
     # load jh buffer-to-buffer
     inp_jhbuf, Y_jhbuf = data_loader.load_data_jh_buf2buf_trial2(rdir) 
 
-    # add On and Off stimuli:
-    # AND separate op50 and buffer effects
+    # collect all data as different stims
     Yf0 = [Y,Y_zim,Y_ztcbuf,Y_jhbuf]
     inp0 = [inp,inp_zim,inp_ztcbuf,inp_jhbuf]
-    op50_expand = [1,1,0,0]
-    for i, Yc in enumerate(Yf0): 
-        op50_bit = op50_expand[i]
+
+    # replace nans with 0s
+    for i, Yc in enumerate(Yf0):
         for j, Ysub in enumerate(Yc):
-            inpc = np.reshape(inp0[i][j],(-1))
-            off_inpc = 1 - inpc
-            first_on = np.where((inpc == 1))[0][0]
-            off_inpc[:first_on] = 0
-            add_i = np.hstack((inpc[:,None],off_inpc[:,None],inpc[:,None]*op50_bit,off_inpc[:,None]*op50_bit))
-            Yf0[i][j] = np.hstack((Ysub, add_i))
+            naninds = np.isnan(Yf0[i][j])
+            Yf0[i][j][naninds] = 0.0
 
 
     ## Tree Boosting Analysis
 
-    # set indicator
-    # combine like conditions... here: zim and ztc_buf are the same
-    fn_set = 'all'
-    Y2 = [Yf0[0], Yf0[1] + Yf0[2], Yf0[3]]
+    Y2 = Yf0
 
     # prediction type:
+    fn_set = 'full'
     fn_pred = 'RA'
     targ_cells = np.array([0,1])
 
     # general params: 
     in_cells = np.array([0,1,2,3])
     num_tree_cell = len(in_cells)
-    in_cells_offset = np.array([4,5,6,7])
-    num_boot = 5
+    in_cells_offset = np.array([4,5])
+    num_boot_hyper = 5
+    num_boot = 1000
 
     # build tensors for each subset:
     Xfs_l, olabs_l, worm_ids_l, fb = [], [], [], []
     # iter thru conditions:
     for i, Yc in enumerate(Y2): 
-        basemus, X, worm_ids, t0s = mt.build_tensors(Yc, targ_cells, in_cells, in_cells_offset, hist_len=42, dt=6)
+        basemus, X, worm_ids, t0s = mt.build_tensors(Yc, targ_cells, in_cells, in_cells_offset, hist_len=24, dt=6)
 
         # get labels and filtered X
-        olab = mt.label_basemus(basemus, thrs=[-.06, -.02, .02, .06])
+        olab = mt.label_basemus(basemus, thrs=[-.06, -.01, .01, .06])
         Xf,fb = mt.filterX(X)
 
         # save:
@@ -216,7 +215,7 @@ if(__name__ == '__main__'):
         hyper_inds = npr.rand(tot_size) < 0.3
         np.save(fn_set + fn_pred + 'hyper_inds', hyper_inds*1)
         # hyperparameter train/test set generation:
-        train_sets_hyper, test_sets_hyper = mt.generate_traintest(tot_size, num_boot, hyper_inds, hyper_inds, train_perc=0.95)
+        train_sets_hyper, test_sets_hyper = mt.generate_traintest(tot_size, num_boot_hyper, hyper_inds, hyper_inds, train_perc=0.95)
         np.save(fn_set + fn_pred + 'train_sets_hyper.npy', train_sets_hyper*1)
         np.save(fn_set + fn_pred + 'test_sets_hyper.npy', test_sets_hyper*1)
         train_sets_hyper = train_sets_hyper > 0.5
@@ -241,16 +240,20 @@ if(__name__ == '__main__'):
 
     # Xf network
     Xf_net = [Xf[:,:,:4,:] for Xf in Xfs_l]
-    # Xf stim ~ raw 
-    Xf_stim = [Xf[:,:,6:,:] for Xf in Xfs_l]
+    # Xf stim ~ On/Off cells
+    Xf_stim = [Xf[:,:,4:6,:] for Xf in Xfs_l]
+    # no stim:
+    Xf_nos = [0.0*Xf[:,:,6:,:] for Xf in Xfs_l]
 
     # load numpy data structures into shared memory arrays
     #sh_hyper_inds = shared_memory.SharedMemory(create=True, size=hyper_inds.nbytes)
 
+    ## HYPER
+
     ## experiment: with stimulus context vs. without
  
     # base run_config:
-    mode = 4 # ~ random slope
+    mode = 2
     run_id = fn_set + fn_pred + 'mode' + str(mode)
     rc = mt.get_run_config(mode, run_id)
     rc['tree_depth'] = [2,1]
@@ -270,19 +273,16 @@ if(__name__ == '__main__'):
     
     # Xf_net l1 
     s = 'l1_mlr_xf1' 
-    vals = [[.01, 1.0], [.02, 1.0], [.02, 2.0], [.01, 2.0]]
+    vals = [[.01, 1.0], [.02, 1.0], [.04,1.0], [.02, 2.0], [.01, 2.0], [.04, 2.0]]
     dstruct = mt.new_run_config_axis(dstruct, s, vals)
     # Xf_stim l1
     s = 'l1_mlr_xf2' 
-    vals = [[.1, 1.0], [.15, 1.0], [.1, 2.0], [.15, 2.0]]
+    vals = [[.05, 1.0], [.1, 1.0], [.15, 1.0], [.05, 2.0], [.1, 2.0], [.15, 2.0]]
     dstruct = mt.new_run_config_axis(dstruct, s, vals)
     # boost depth:
     s = 'tree_depth'
     vals = [[2,2],[2,1]]
     dstruct = mt.new_run_config_axis(dstruct, s, vals)
-
-    print(len(dstruct))
-    input('cont?')
 
     # hyperparameter testing
     def bch(rc): 
@@ -290,8 +290,37 @@ if(__name__ == '__main__'):
         return mt.boot_cross_hyper(rc)
 
     # limit number of processes in pool
-    MAXPROC = 5
+    MAXPROC = 4
     with Pool(MAXPROC) as p:
         p.map(bch, dstruct)
 
+    """
 
+    ## CROSS
+    # stim config
+    mode = 2 # ~ random slope
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + 'STIMCELLTEST'
+    rc = mt.get_run_config(mode, run_id)
+    mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_stim_oo, worm_ids_l, olabs_l, train_sets_hyper,
+            test_sets_hyper) 
+    rc['tree_depth'] = [2,2]
+    rc['l1_tree'] = [.01, 2.0]
+    rc['l1_mlr_xf1'] = [.02, 1.0]
+    rc['l1_mlr_xf2'] = [0.1, 2.0]
+
+    # nostim config 
+    mode = 4 # ~ random slope
+    run_id = fn_set + fn_pred + 'mode' + str(mode) + 'NOSTEST'
+    rc = mt.get_run_config(mode, run_id)
+    mt.add_dat_rc(rc, hyper_inds, train_sets, test_sets, Xf_net, Xf_nos, worm_ids_l, olabs_l, train_sets_hyper,
+            test_sets_hyper) 
+    rc['tree_depth'] = [2,1]
+    rc['l1_tree'] = [.01, 2.0]
+    rc['l1_mlr_xf1'] = [.01, 1.0]
+    rc['l1_mlr_xf2'] = [0.1, 1.0]
+
+    # run:
+    mt.boot_cross_boosted(rc)
+
+
+    """
