@@ -393,6 +393,7 @@ def boot_cross_hyper(rc):
         f_loss_train = B.forest_loss(dat_hyper_train[0], dat_hyper_train[1], f_mask).numpy()
         f_loss_test = B.forest_loss(dat_hyper_test[0], dat_hyper_test[1], f_mask).numpy()
         htre_errs.append([f_loss_train, f_loss_test])
+        np.save(os.path.join(rc['dir_str'], 'hyper_err'), np.array(htre_errs))
 
 
 
@@ -451,6 +452,7 @@ def boot_cross_boosted(rc):
     ## fit mlr/drives to each bootstrap
     # --> save forest errors
     save_loss = []
+    save_train_loss = []
     save_train_vars = []
     for i in range(np.shape(rc['train_sets'])[0]):
         train_inds = rc['train_sets'][i]
@@ -465,8 +467,13 @@ def boot_cross_boosted(rc):
         # get forest error on test set:
         f_loss = B.forest_loss(dat_test[0], dat_test[1], f_mask).numpy()
         save_loss.append(f_loss)
+        np.save(os.path.join(rc['dir_str'], 'boosted_test_err'), np.array(save_loss))
 
-        np.save(os.path.join(rc['dir_str'], 'boosted_err'), np.array(save_loss))
+        # get forest error on train set:
+        f_loss_tr = B.forest_loss(dat_train[0], dat_train[1], f_mask).numpy()
+        save_train_loss.append(f_loss_tr)
+        np.save(os.path.join(rc['dir_str'], 'boosted_train_err'), np.array(save_train_loss))
+
 
         # save training vars:
         if(len(save_train_vars) == 0):
