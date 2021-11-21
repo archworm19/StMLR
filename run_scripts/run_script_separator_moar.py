@@ -120,7 +120,7 @@ def run_5cond(Y2, targ_cells, in_cells, in_cells_offset, fn_cond, fn_pred, S=[],
     # l1 mask for different cells:
     l1_base_scale = .01
     # MARKER:VARIABLE
-    l1_stim_scale = .16
+    l1_stim_scale = .3
     l1_cells = np.ones((num_cell_drive, subx_drive))
     l1_cells[:4,:] = l1_base_scale
     l1_cells[4:,:] = l1_stim_scale
